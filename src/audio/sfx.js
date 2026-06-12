@@ -185,7 +185,7 @@ export function createSfx(game, { listenerPos } = {}) {
   });
   on('superLaunch', () => play('super_launch', { vol: 1, gapMs: 500 }));
   on('superImpact', (ev) => { const n = SUPER[ev.key]; if (n) play(n, { vol: 1, gapMs: 400 }); });
-  on('constructionStart', (ev) => { const e = game.entity(ev.id); if (e) play('build_place', { x: e.x, z: e.z, vol: 0.8 }); });
+  on('constructionStart', (ev) => { const e = game.entity(ev.id); if (e) play('build_place', { x: e.x, z: e.z, vol: 0.35, gapMs: 2000 }); });
   on('constructionComplete', (ev) => { const e = game.entity(ev.id); if (e && e.side === 'player') play('build_done', { vol: 0.55 }); });
   on('spawn', (ev) => { const e = ev.entity; if (e && e.side === 'player' && e.kind === 'unit') play('unit_ready', { vol: 0.4, gapMs: 400 }); });
   on('sold', () => play('sold', { vol: 0.7, gapMs: 300 }));
