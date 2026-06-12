@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// IRON COMMAND — 3D entity icons for the HUD.
+// FREEDOM FIGHT — 3D entity icons for the HUD.
 //
 // Renders each unit/structure's actual in-game mesh (GLTF model when one is
 // loaded, procedural mesh otherwise) into a small offscreen WebGL canvas and

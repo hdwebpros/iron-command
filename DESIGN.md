@@ -1,4 +1,4 @@
-# IRON COMMAND — Design & Architecture Contract (v2: Zero Hour edition)
+# FREEDOM FIGHT — Design & Architecture Contract (v2: Zero Hour edition)
 
 A **Command & Conquer Generals: Zero Hour**–style skirmish RTS, 1 player vs AI, in the browser.
 Vite + Three.js. Desktop only, mouse + hotkeys. No save games. All art procedural (no image assets).
@@ -42,7 +42,7 @@ Sim runs at fixed **30 Hz** (`dt = 1/30`). Render at rAF. Map coordinates: x,z �
 
 | | **COALITION** (USA-like) | **DOMINION** (China-like) | **SYNDICATE** (GLA-like) |
 |---|---|---|---|
-| General | Kira "Phantom" Voss | Vance "Steel" Karov | Marcus "Hammer" Drago |
+| General | Kira "Phantom" Voss | Vance "Steel" Karov | Ali "Viper" Abazz |
 | Identity | Expensive high-tech, air power, lasers, stealth aircraft | Tank & infantry hordes, napalm, nukes, horde bonus | Cheap swarm, stealth, suicide, salvage scrap, **needs no power** |
 | Superweapon | **Orbital Lance** (sweeping particle beam) | **Nuclear Missile** (blast + lingering radiation) | **Viper Storm** (9-rocket toxin barrage) |
 | Hero | **Ghost** (stealth commando, C4, knife) | **Mantis** (infiltrator: disable + cash hack) | **Cobra** (stealth sniper, crew-snipe vehicles) |

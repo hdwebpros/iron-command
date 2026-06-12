@@ -1,4 +1,4 @@
-// ─── IRON COMMAND — GfxEngine (DESIGN §13.2, the gfx API contract) ──────────
+// ─── FREEDOM FIGHT — GfxEngine (DESIGN §13.2, the gfx API contract) ──────────
 //   const gfx = new GfxEngine(canvas);
 //   gfx.attach(game); gfx.update(dt, state);
 //   gfx.pick(cx,cy) / pickRect(x1,y1,x2,y2)
@@ -27,6 +27,21 @@ const SKY_ZENITH = 0x5d7ea8;
 const SUN_DIR = new THREE.Vector3(-26, 13, 9).normalize();  // low western sun
 const BASE_EXPOSURE = 1.08;
 const SUPER_KEYS = { orbitalLance: 1, nuclearMissile: 1, viperStorm: 1 };
+const AIR_LAYER = 1;   // aircraft live on layer 0 AND 1; layer 1 re-renders on top
+
+// Second scene pass restricted to AIR_LAYER with the depth buffer cleared, so
+// aircraft always read above buildings/terrain instead of clipping behind them.
+class AirOverlayPass extends RenderPass {
+  render(renderer, writeBuffer, readBuffer, deltaTime, maskActive) {
+    const mask = this.camera.layers.mask;
+    const shadows = renderer.shadowMap.autoUpdate;
+    this.camera.layers.set(AIR_LAYER);
+    renderer.shadowMap.autoUpdate = false;   // shadow maps already built by the main pass
+    super.render(renderer, writeBuffer, readBuffer, deltaTime, maskActive);
+    renderer.shadowMap.autoUpdate = shadows;
+    this.camera.layers.mask = mask;
+  }
+}
 
 const _v1 = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -121,19 +136,6 @@ export class GfxEngine {
     this._handlers = [];
     this.skipRender = false;   // dev harness: step simulation visuals without compositing
 
-    // CC0 unit models load in the background; entities spawned before that
-    // finish get procedural meshes, then rebuild once the templates exist.
-    preloadModels();
-    onModelsReady(() => {
-      if (this._disposed) return;
-      for (const [id, rec] of [...this._recs]) {
-        if (hasModel(rec.group.userData.faction, rec.key)) {
-          this._entityLayer.remove(rec.group);
-          this._recs.delete(id);
-        }
-      }
-    });
-
     const w = canvasEl.clientWidth || window.innerWidth;
     const h = canvasEl.clientHeight || window.innerHeight;
 
@@ -167,7 +169,11 @@ export class GfxEngine {
     sun.shadow.normalBias = 0.04;
     scene.add(sun, sun.target);
     this._sun = sun;
-    scene.add(new THREE.HemisphereLight(0x96aed2, 0xb07c48, 0.85));
+    const hemi = new THREE.HemisphereLight(0x96aed2, 0xb07c48, 0.85);
+    scene.add(hemi);
+    // lights must be on AIR_LAYER too or the overlay pass renders aircraft unlit
+    sun.layers.enable(AIR_LAYER);
+    hemi.layers.enable(AIR_LAYER);
 
     // ── camera rig: RTS perspective, ~50° pitch ──
     const camera = new THREE.PerspectiveCamera(46, w / h, 0.5, 600);
@@ -181,6 +187,10 @@ export class GfxEngine {
     // ── post ──
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
+    const airPass = new AirOverlayPass(scene, camera);
+    airPass.clear = false;
+    airPass.clearDepth = true;
+    composer.addPass(airPass);
     const bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.42, 0.4, 0.83);
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
@@ -203,6 +213,21 @@ export class GfxEngine {
     this._dying = [];                // death animations in flight
     this._selected = new Set();
     this._hoverId = null;
+
+    // CC0 unit models load in the background; entities spawned before that
+    // finish get procedural meshes, then rebuild once the templates exist.
+    // Registered after _recs exists: onModelsReady fires synchronously when
+    // models are already loaded (e.g. on restart).
+    preloadModels();
+    onModelsReady(() => {
+      if (this._disposed) return;
+      for (const [id, rec] of [...this._recs]) {
+        if (hasModel(rec.group.userData.faction, rec.key)) {
+          this._entityLayer.remove(rec.group);
+          this._recs.delete(id);
+        }
+      }
+    });
 
     this._buildOverlays();
     this._buildFog();
@@ -828,6 +853,7 @@ export class GfxEngine {
     group.userData.entityId = ent.id;
     const u = group.userData;
     const air = !!u.air && ent.kind === 'unit';
+    if (air) group.traverse((o) => o.layers.enable(AIR_LAYER));
     const x = ent.x ?? 0, z = ent.z ?? 0;
     rec = {
       id: ent.id, ent,
@@ -1170,6 +1196,7 @@ export class GfxEngine {
           if (!rec.vetSpr) {
             rec.vetSpr = new THREE.Sprite(pipMat(vet, false));
             rec.vetSpr.scale.set(0.5, 0.5, 1);
+            if (rec.air) rec.vetSpr.layers.enable(AIR_LAYER);
             g.add(rec.vetSpr);
           } else rec.vetSpr.material = pipMat(vet, false);
           rec.vetSpr.position.set(0.4, (u.height || 0.8) + 0.55, 0);
@@ -1183,6 +1210,7 @@ export class GfxEngine {
           if (!rec.salSpr) {
             rec.salSpr = new THREE.Sprite(pipMat(sal, true));
             rec.salSpr.scale.set(0.5, 0.5, 1);
+            if (rec.air) rec.salSpr.layers.enable(AIR_LAYER);
             g.add(rec.salSpr);
           } else rec.salSpr.material = pipMat(sal, true);
           rec.salSpr.position.set(-0.4, (u.height || 0.8) + 0.55, 0);

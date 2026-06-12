@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// IRON COMMAND — Main menu  (Zero Hour edition)
+// FREEDOM FIGHT — Main menu
 // export function Menu(rootEl, { onStart(factionKey, difficulty), factions })
 //   → { show(), hide(), destroy(), el }
 // Plain DOM/CSS. No framework, no imports, no external assets (inline SVG only).
@@ -88,7 +88,7 @@ const FALLBACK_FACTIONS = {
     superweapon: 'Nuclear Missile',
   },
   syndicate: {
-    name: 'Syndicate', general: 'Marcus "Hammer" Drago', color: '#3da64b',
+    name: 'Syndicate', general: 'Ali "Viper" Abazz', color: '#3da64b',
     blurb: 'Cheap swarms, stealth, and salvage. No power grid to defend — scavenge scrap and bury the enemy in numbers.',
     highlights: [
       { key: 'scorpion', name: 'Scorpion Tank' },
@@ -169,7 +169,7 @@ export function Menu(rootEl, opts = {}) {
     <div class="ic-menu-vignette"></div>
     <div class="ic-menu-inner"></div>
     <div class="ic-version">${VERSION}</div>
-    <div class="ic-credit-line">IRON COMMAND // TACTICAL WARFARE SYSTEM</div>
+    <div class="ic-credit-line">FREEDOM FIGHT // TACTICAL WARFARE SYSTEM</div>
   `;
   rootEl.appendChild(el);
 
@@ -269,7 +269,7 @@ export function Menu(rootEl, opts = {}) {
     s.className = 'ic-step';
     s.innerHTML = `
       <div class="ic-title-wrap">
-        <h1 class="ic-title"><span class="ic-title-iron">IRON</span> <span class="ic-title-command">COMMAND</span></h1>
+        <h1 class="ic-title"><span class="ic-title-iron">FREEDOM</span> <span class="ic-title-command">FIGHT</span></h1>
         <div class="ic-subtitle">Zero Hour</div>
         <div class="ic-title-rule"></div>
       </div>

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Generate Iron Command's SFX library + EVA voice lines via ElevenLabs.
+# Generate Freedom Fight's SFX library + EVA voice lines via ElevenLabs.
 # Usage: bash scripts/gen-sfx.sh   (requires ELEVENLABS_API in .env)
 set -u
 cd "$(dirname "$0")/.."
@@ -37,7 +37,7 @@ gen_tts() { # name text
 gen_sfx shot_rifle   1.0 "short assault rifle burst, three rounds, punchy dry military gunfire, no reverb tail" &
 gen_sfx shot_gatling 1.2 "rapid minigun gatling gun burst, very fast fire rate, mechanical whirring, punchy" &
 gen_sfx shot_cannon  1.5 "tank main cannon single shot, deep powerful boom with a sharp crack, military" &
-gen_sfx shot_missile 1.2 "shoulder fired rocket launch, igniting whoosh hissing away into the distance" &
+gen_sfx shot_missile 1.2 "subtle quiet rocket launch, soft muffled whoosh fading into the distance, gentle airy hiss, understated" &
 gen_sfx shot_flame   1.5 "flamethrower burst, roaring whoosh of fire with deep crackle" &
 gen_sfx shot_toxin   1.2 "pressurized chemical sprayer burst, liquid spray hiss, sizzling" &
 gen_sfx shot_sniper  1.2 "single sniper rifle shot, sharp loud crack with a brief canyon echo" &

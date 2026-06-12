@@ -1,4 +1,4 @@
-// ─── IRON COMMAND — GFX preview harness (dev only, not part of the game) ────
+// ─── FREEDOM FIGHT — GFX preview harness (dev only, not part of the game) ────
 // Standalone visual test bed: instantiates GfxEngine against a mock game.
 //   gfx-preview.html?scene=coalition|dominion|syndicate|neutral|effects|fog
 import * as THREE from 'three';
@@ -106,7 +106,7 @@ function buildFactionScene(faction) {
   const us = 3.4;
   const ux0 = -((units.length - 1) / 2) * us;
   units.forEach((key, i) => {
-    E({ key, faction, x: ux0 + i * us, z: 16, angle: -Math.PI / 2 });
+    E({ key, faction, x: ux0 + i * us, z: 16, angle: 0 });   // angle 0 → correct units face screen-right (side profile)
     makeLabel(key, ux0 + i * us, 16 + 1.6, key === 'pelican' || key === 'specter' || key === 'falcon' || key === 'meteor' || key === 'vulture' ? 7.6 : 2.4);
   });
 
@@ -380,6 +380,22 @@ function buildFogScene() {
   tick = () => {};
 }
 
+/* ── air scene: aircraft tucked behind tall structures — they must render on
+   top (depth-cleared AIR_LAYER pass), never clipped by the buildings ──────── */
+function buildAirScene() {
+  makeLabel('AIR ON TOP', 0, 30, 7, true);
+  // tall structures in front (camera looks from +z), aircraft right behind them
+  E({ key: 'orbitalLance', faction: 'coalition', kind: 'structure', x: -8, z: 0, sel: 2.8 });
+  E({ key: 'pelican', faction: 'coalition', x: -8, z: -2.5 });
+  makeLabel('pelican behind lance', -8, 8.5, 4);
+  E({ key: 'uplink', faction: 'coalition', kind: 'structure', x: 8, z: 0, sel: 2.8 });
+  E({ key: 'falcon', faction: 'coalition', x: 8, z: -2 });
+  makeLabel('falcon behind uplink', 8, 8.5, 4);
+  gfx.jumpTo(0, -1);
+  gfx._distT = gfx._dist = 22;
+  tick = () => {};
+}
+
 /* ── perf scene: 160 entities under combat load ─────────────────────────── */
 function buildPerfScene() {
   makeLabel('PERF 160', 0, 30, 6, true);
@@ -603,6 +619,7 @@ switch (SCENE) {
   case 'neutral': buildNeutralScene(); break;
   case 'effects': buildEffectsScene(); break;
   case 'fog': buildFogScene(); break;
+  case 'air': buildAirScene(); break;
   case 'perf': buildPerfScene(); break;
   case 'models': tick = () => {}; buildModelsScene(); break;
   case 'dump': tick = () => {}; buildDumpScene(); break;

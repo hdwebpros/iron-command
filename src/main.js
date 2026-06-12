@@ -1,4 +1,4 @@
-// ─── IRON COMMAND — Integration layer (DESIGN §13.4) ─────────────────────────
+// ─── FREEDOM FIGHT — Integration layer (DESIGN §13.4) ─────────────────────────
 // Wires sim ↔ ai ↔ gfx ↔ ui. Fixed-step 30 Hz sim inside a rAF loop,
 // input state machine (normal / placing / targeting), selection model,
 // control groups, camera keys, pause, rematch/teardown, EVA wiring, test hooks.
@@ -17,6 +17,7 @@ import { FACTIONS } from './sim/factions.js';
 import { AIController } from './sim/ai.js';
 import { GfxEngine } from './gfx/renderer.js';
 import { Menu } from './ui/menu.js';
+import { playGeneralIntro } from './ui/intro.js';
 import { HUD } from './ui/hud.js';
 import { createSfx, createMusic } from './audio/sfx.js';
 
@@ -29,6 +30,8 @@ const HUD_INTERVAL = 0.1;     // ~10 Hz DOM updates
 const DRAG_PX = 6;            // box-select threshold
 const EDGE_PX = 24;           // edge-pan band
 const PAN_SPEED = 34;         // world units / s
+const RMB_SCROLL = 0.5;       // RMB anchor scroll: world units/s per px of offset
+const RMB_SCROLL_MAX = 110;   // RMB scroll speed cap
 const SUPER_RADIUS = 10;
 
 // Reticle radii per general's power (DESIGN §8 effect areas).
@@ -77,11 +80,12 @@ function randomFaction() {
 
 function showMenu() {
   if (menu) { menu.destroy(); menu = null; }
-  document.title = 'Iron Command';
+  document.title = 'Freedom Fight';
   music.play('menu');
   menu = Menu(uiRoot, {
     factions: FACTIONS,
-    onStart: (factionKey, difficulty) => startGame(factionKey, difficulty),
+    onStart: (factionKey, difficulty) =>
+      playGeneralIntro(uiRoot, factionKey).then(() => startGame(factionKey, difficulty)),
   });
 }
 
@@ -143,6 +147,8 @@ function createSession(playerFaction, difficulty, opts) {
   let attackMoveArmed = false;
   let mode = { name: 'normal' };  // | {name:'placing',key,builderId} | {name:'targeting',kind,key,unitId,radius,color} | {name:'rally',structureId}
   const keysDown = new Set();
+  let rmbPan = null;         // {ax,ay,x,y,moved} — right-button held: anchor scroll (Generals-style)
+  let lastETap = 0;          // double-tap E → same type across map
   let lastClient = null;     // mouse pos for edge pan / ghost
   let hoverAt = 0;
   let dragStart = null;      // {x,y}
@@ -315,6 +321,11 @@ function createSession(playerFaction, difficulty, opts) {
 
   function onPointerMove(e) {
     lastClient = { x: e.clientX, y: e.clientY };
+    if (rmbPan) {
+      rmbPan.x = e.clientX; rmbPan.y = e.clientY;
+      if (Math.abs(e.clientX - rmbPan.ax) >= DRAG_PX || Math.abs(e.clientY - rmbPan.ay) >= DRAG_PX) rmbPan.moved = true;
+      return;
+    }
     if (dragStart && !boxActive &&
         (Math.abs(e.clientX - dragStart.x) >= DRAG_PX || Math.abs(e.clientY - dragStart.y) >= DRAG_PX)) {
       boxActive = true;
@@ -372,13 +383,22 @@ function createSession(playerFaction, difficulty, opts) {
       return;
     }
     if (e.button === 2) {
-      if (mode.name !== 'normal') { setMode({ name: 'normal' }); return; }
-      if (attackMoveArmed) { attackMoveArmed = false; return; }
-      contextOrder(gfx.pick(e.clientX, e.clientY));
+      // Generals scheme: hold + move = fast scroll; plain click = cancel / deselect (on release).
+      rmbPan = { ax: e.clientX, ay: e.clientY, x: e.clientX, y: e.clientY, moved: false };
     }
   }
 
   function onPointerUp(e) {
+    if (e.button === 2) {
+      const wasDrag = rmbPan && rmbPan.moved;
+      rmbPan = null;
+      if (wasDrag) return;
+      // plain right-click: cancel current mode, else deselect (Generals)
+      if (mode.name !== 'normal') { setMode({ name: 'normal' }); return; }
+      if (attackMoveArmed) { attackMoveArmed = false; return; }
+      setSelection([]);
+      return;
+    }
     if (e.button !== 0) return;
     const hadDrag = boxActive;
     const start = dragStart;
@@ -405,6 +425,14 @@ function createSession(playerFaction, difficulty, opts) {
     }
 
     const ent = p.entityId != null ? game.entity(p.entityId) : null;
+    const units = selUnits();
+
+    // Ctrl+Click: force fire on any entity (Generals)
+    if (e.ctrlKey && ent && ent.hp > 0 && units.length) {
+      issueP({ type: 'attack', ids: units.map((u) => u.id), targetId: ent.id });
+      return;
+    }
+
     if (ent && ent.side === 'player' && ent.hp > 0) {
       if (e.detail >= 2 && ent.kind === 'unit') {
         // double-click: all of same type on screen
@@ -412,6 +440,14 @@ function createSession(playerFaction, difficulty, opts) {
           .filter((id) => { const u = game.entity(id); return u && u.key === ent.key; });
         setSelection(all.length ? all : [ent.id]);
         return;
+      }
+      // own structure: order if the selection can act on it (repair / garrison), else select
+      if (units.length && ent.kind === 'structure' && !e.shiftKey) {
+        const builder = units.find((u) => u.def.builder);
+        const canRepair = builder && ent.hp < ent.maxHp && ent.building == null;
+        const canGarrison = (ent.garrisonSlots || 0) > 0 &&
+          units.some((u) => u.def.armor === 'infantry' && !u.def.builder);
+        if (canRepair || canGarrison) { contextOrder(p); return; }
       }
       if (e.shiftKey) {
         setSelection(selection.includes(ent.id)
@@ -422,10 +458,24 @@ function createSession(playerFaction, difficulty, opts) {
       }
       return;
     }
+
+    // ground / neutral / enemy: left click orders the current selection (Generals)
+    if (units.length) { contextOrder(p); return; }
+
+    // production structure selected: left click on ground sets its rally point
+    const structs = liveSel().filter((s) => s.kind === 'structure');
+    if (structs.length && !ent) {
+      let any = false;
+      for (const s of structs) {
+        const res = issueP({ type: 'setRally', structureId: s.id, x: p.x, z: p.z });
+        if (res.ok) { gfx.flashRally(s.id, p.x, p.z); any = true; }
+      }
+      if (any) return;
+    }
     if (!e.shiftKey) setSelection([]);
   }
 
-  // Right-click context order (DESIGN §12).
+  // Left-click context order on the current selection (DESIGN §12; Generals default scheme).
   function contextOrder(p) {
     const units = selUnits();
     if (!units.length) return;
@@ -484,14 +534,31 @@ function createSession(playerFaction, difficulty, opts) {
   }
 
   // ── input: keyboard ───────────────────────────────────────────────────────
-  const PAN_KEYS = new Set(['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright']);
+  // Arrow keys pan (Generals); WASD letters are command hotkeys, not camera.
+  const PAN_KEYS = new Set(['arrowup', 'arrowdown', 'arrowleft', 'arrowright']);
 
-  function selectSameType() {
+  function selectSameType(wholeMap) {
     const keys = new Set(selUnits().map((u) => u.key));
     if (!keys.size) return;
-    const all = gfx.pickRect(0, 0, window.innerWidth, window.innerHeight)
-      .filter((id) => { const u = game.entity(id); return u && keys.has(u.key); });
+    let all;
+    if (wholeMap) {
+      all = [];
+      for (const u of game.entities.values()) {
+        if (u.side === 'player' && u.kind === 'unit' && u.hp > 0 && keys.has(u.key)) all.push(u.id);
+      }
+    } else {
+      all = gfx.pickRect(0, 0, window.innerWidth, window.innerHeight)
+        .filter((id) => { const u = game.entity(id); return u && keys.has(u.key); });
+    }
     if (all.length) setSelection(all);
+  }
+  function selectAllCombat() {
+    const ids = [];
+    for (const u of game.entities.values()) {
+      if (u.side === 'player' && u.kind === 'unit' && u.hp > 0 &&
+          (u.def.weapon || u.def.suicide) && !u.def.builder) ids.push(u.id);
+    }
+    if (ids.length) setSelection(ids);
   }
   function jumpHome() {
     for (const e of game.entities.values()) {
@@ -530,7 +597,14 @@ function createSession(playerFaction, difficulty, opts) {
       case 'a': attackMoveArmed = true; break;
       case 's': { const ids = selUnitIds(); if (ids.length) issueP({ type: 'stop', ids }); break; }
       case 'g': { const ids = selUnitIds(); if (ids.length) issueP({ type: 'guard', ids }); break; }
-      case 'e': selectSameType(); break;
+      case 'e': {
+        // E: same type on screen; double-tap E: same type across the map (Generals)
+        const now = performance.now();
+        selectSameType(now - lastETap < 400);
+        lastETap = now;
+        break;
+      }
+      case 'q': selectAllCombat(); break;
       case 'h': jumpHome(); break;
       case 'b': {
         const b = findIdleBuilder();
@@ -546,6 +620,11 @@ function createSession(playerFaction, difficulty, opts) {
         if (k >= '1' && k <= '9') {
           if (e.ctrlKey) {
             groups[k] = [...selection];
+            e.preventDefault();
+          } else if (e.altKey) {
+            // Alt+#: view group location without selecting (Generals)
+            const g = (groups[k] || []).filter(alive);
+            if (g.length) centerOnGroup(g);
             e.preventDefault();
           } else {
             const g = (groups[k] || []).filter(alive);
@@ -563,11 +642,21 @@ function createSession(playerFaction, difficulty, opts) {
   function onKeyUp(e) { keysDown.delete(e.key.toLowerCase()); }
 
   function applyPan(dt) {
+    // RMB hold + move: Generals fast scroll — speed scales with offset from the anchor.
+    if (rmbPan && rmbPan.moved) {
+      const ox = rmbPan.x - rmbPan.ax, oy = rmbPan.y - rmbPan.ay;
+      const mag = Math.hypot(ox, oy);
+      if (mag > 0) {
+        const speed = Math.min(mag * RMB_SCROLL, RMB_SCROLL_MAX);
+        gfx.panCamera(ox / mag * speed * dt, oy / mag * speed * dt);
+      }
+      return;
+    }
     let dx = 0, dz = 0;
-    if (keysDown.has('w') || keysDown.has('arrowup')) dz -= 1;
-    if (keysDown.has('s') || keysDown.has('arrowdown')) dz += 1;
-    if (keysDown.has('a') || keysDown.has('arrowleft')) dx -= 1;
-    if (keysDown.has('d') || keysDown.has('arrowright')) dx += 1;
+    if (keysDown.has('arrowup')) dz -= 1;
+    if (keysDown.has('arrowdown')) dz += 1;
+    if (keysDown.has('arrowleft')) dx -= 1;
+    if (keysDown.has('arrowright')) dx += 1;
     if (lastClient) {
       const W = window.innerWidth, H = window.innerHeight;
       if (lastClient.x <= EDGE_PX) dx -= 1;
@@ -588,7 +677,7 @@ function createSession(playerFaction, difficulty, opts) {
   listen(canvas, 'wheel', (e) => { e.preventDefault(); gfx.zoomCamera(e.deltaY); }, { passive: false });
   listen(window, 'keydown', onKeyDown);
   listen(window, 'keyup', onKeyUp);
-  listen(window, 'blur', () => { keysDown.clear(); attackMoveArmed = false; });
+  listen(window, 'blur', () => { keysDown.clear(); attackMoveArmed = false; rmbPan = null; });
   listen(window, 'mouseout', (e) => { if (!e.relatedTarget) lastClient = null; });
 
   // ── HUD update (~10 Hz) ───────────────────────────────────────────────────
@@ -680,7 +769,7 @@ function createSession(playerFaction, difficulty, opts) {
     hud.destroy();
     sfx.dispose();
     gfx.dispose();
-    document.title = 'Iron Command';
+    document.title = 'Freedom Fight';
   }
 
   return { teardown };

@@ -1,4 +1,4 @@
-// IRON COMMAND — Game simulation core. Pure ES module, zero three/DOM imports.
+// FREEDOM FIGHT — Game simulation core. Pure ES module, zero three/DOM imports.
 // Runs under plain node. Deterministic (seeded RNG). Fixed dt = 1/30.
 //
 // Public API (DESIGN §13.1):
@@ -77,6 +77,7 @@ export class Game {
         cashBounty: 0,    // syndicate passive bounty fraction
         heroAlive: false,
         secondaryTimers: {}, // structureId → timer
+        stats: { unitsBuilt: 0, unitsLost: 0, kills: 0, moneyEarned: 0, supersFired: 0 },
       };
     }
 
@@ -292,7 +293,7 @@ export class Game {
   _addMoney(side, amount) {
     const s = this.sides[side];
     s.money += amount;
-    if (amount > 0) s.incomeAccum += amount;
+    if (amount > 0) { s.incomeAccum += amount; s.stats.moneyEarned += amount; }
   }
 
   // ─── Power ───────────────────────────────────────────────────────────────────
@@ -416,6 +417,7 @@ export class Game {
 
     const spawnOne = () => {
       const u = this._spawnUnit(side, key, sx, sz);
+      this.sides[side].stats.unitsBuilt++;
       if (struct.rally) this._orderMove([u.id], struct.rally.x, struct.rally.z, side);
       else if (def.harvester) this._autoHarvest(u);
       return u;
@@ -993,6 +995,7 @@ export class Game {
     // general's rank XP
     if (killerSide && killerSide !== target.side && target.side !== NEUTRAL) {
       const s = this.sides[killerSide];
+      s.stats.kills++;
       const gain = (target.kind === 'structure') ? 50 : victimCost / 4;
       this._addRankXp(killerSide, gain);
       // cash bounty (syndicate passive)
@@ -1311,6 +1314,7 @@ export class Game {
     if (!s.super || !s.super.ready) return { ok: false, reason: 'not ready' };
     const struct = this.entities.get(s.super.id);
     s.super.ready = false; s.super.charge = 0;
+    s.stats.supersFired++;
     const key = s.super.key;
     this._emit('superLaunch', { side, key, x, z });
     this._eva('superLaunchDetected', x, z);
@@ -1390,7 +1394,13 @@ export class Game {
     else if (structs.player === 0 && structs.enemy === 0) winner = PLAYER; // tie → player (shouldn't happen)
     // only declare once both sides have had structures (avoid frame-0)
     if (winner && this.time > 0.1) {
-      const stats = { time: this.time };
+      const ps = this.sides[PLAYER];
+      const stats = {
+        ...ps.stats,
+        moneyEarned: Math.round(ps.stats.moneyEarned),
+        time: this.time,
+        rank: Math.max(1, ps.rank),
+      };
       this._over = { winner, stats };
       this._emit('gameOver', { winner, stats });
       this._eva(winner === PLAYER ? 'victory' : 'defeat');
@@ -1407,7 +1417,7 @@ export class Game {
       for (const id of [...e.garrisonList]) { const o = this.entities.get(id); if (o) this._evictOccupant(e, o, true); }
     }
     if (e.kind === 'unit') {
-      this.sides[e.side] && (this.sides[e.side].pop -= e.def.pop);
+      if (this.sides[e.side]) { this.sides[e.side].pop -= e.def.pop; this.sides[e.side].stats.unitsLost++; }
       if (e.def.hero) this.sides[e.side].heroAlive = false;
       // remove from any garrison it was in
       if (e.garrisonedIn) { const host = this.entities.get(e.garrisonedIn); if (host) host.garrisonList = host.garrisonList.filter(i => i !== e.id); }

@@ -1,4 +1,4 @@
-// IRON COMMAND — spatial hash, binary heap, A* pathfinding. Pure, no imports
+// FREEDOM FIGHT — spatial hash, binary heap, A* pathfinding. Pure, no imports
 // except map helpers (which themselves import nothing).
 import { GRID_W, GRID_H, cellBlocked, worldToCell, cellToWorld } from './map.js';
 

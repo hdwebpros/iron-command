@@ -1,4 +1,4 @@
-// IRON COMMAND — sim constants, RNG, damage table, geometry helpers.
+// FREEDOM FIGHT — sim constants, RNG, damage table, geometry helpers.
 // Pure: zero imports from three/DOM. Runs under plain node.
 
 export const TICK = 1 / 30;

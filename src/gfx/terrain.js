@@ -1,4 +1,4 @@
-// ─── IRON COMMAND — Scorched Basin terrain ──────────────────────────────────
+// ─── FREEDOM FIGHT — Scorched Basin terrain ──────────────────────────────────
 // MAP.size² golden-hour desert built straight from the frozen MAP data:
 // procedural 2048px diffuse (fbm sand, tire tracks, scorch), impassable
 // mountain ring on the 4-unit border, rock outcrops at every blocker,

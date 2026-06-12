@@ -1,4 +1,4 @@
-// ─── IRON COMMAND — CC0 model registry (Quaternius packs, /public/models) ───
+// ─── FREEDOM FIGHT — CC0 model registry (Quaternius packs, /public/models) ───
 // Loads GLTF/FBX unit models once at startup, normalizes them (scale, ground
 // offset, forward = +Z), tints them per faction, and hands out instances that
 // carry the same userData contract as the procedural meshes (radius, height,
@@ -31,27 +31,67 @@ const TANK = (url, size) => ({
   url, fit: 'l', size, yaw: Math.PI / 2, tintAmt: 0.32,
   turret: 'Tank_Turret', gun: 'Tank_Gun',
 });
-const RIFLE = { url: '/models/toonshooter/chars/Character_Soldier.gltf', fit: 'h', size: 1.25, yaw: Math.PI, tintAmt: 0.42, anims: CHAR_ANIMS };
-const ROCKET = { url: '/models/toonshooter/chars/Character_Enemy.gltf', fit: 'h', size: 1.25, yaw: Math.PI, tintAmt: 0.42, anims: CHAR_ANIMS };
+// ToonShooter chars ship with EVERY weapon mesh attached (plus a stray
+// Icosphere) — `weapon` picks the one to keep; the rest are stripped before
+// normalization so the bbox (and thus the scale) comes from the body alone.
+const CHAR = (file, weapon) => ({
+  url: `/models/toonshooter/chars/Character_${file}.gltf`,
+  fit: 'h', size: 1.25, yaw: Math.PI, tintAmt: 0.42, anims: CHAR_ANIMS, weapon,
+});
+// Static GLB vehicles from /models/units (poly.pizza picks, see CREDITS.md).
+const VEH = (file, size, yaw = 0) => ({ url: `/models/units/${file}.glb`, fit: 'l', size, yaw, tintAmt: 0.3 });
+const AIR = (file, size, yaw = 0, hoverY = 4.5) => ({ ...VEH(file, size, yaw), hoverY });
 
 const MODEL_DEFS = {
   coalition: {
-    trooper: RIFLE,
-    javelin: ROCKET,
-    paladin: TANK('/models/tanks/Tank2.fbx', 3.2),
+    trooper:  CHAR('Soldier', 'AK'),
+    javelin:  CHAR('Enemy', 'RocketLauncher'),
+    marksman: CHAR('Soldier', 'Sniper'),
+    ghost:    CHAR('Enemy', 'Sniper_2'),
+    dozer:    VEH('dozer_a', 2.8, Math.PI / 2),
+    outrider: VEH('outrider', 3.0, Math.PI),
+    paladin:  TANK('/models/tanks/Tank2.fbx', 3.2),
+    tempest:  VEH('tempest', 3.5),
+    pelican:  AIR('pelican', 3.0, Math.PI / 2),
+    specter:  AIR('specter', 3.4, Math.PI / 2),
+    falcon:   AIR('falcon', 3.4, -Math.PI / 4, 5.5),
+    meteor:   AIR('meteor', 4.4, 0, 6),
   },
   dominion: {
-    conscript: RIFLE,
-    hunter: ROCKET,
-    warmaster: TANK('/models/tanks/Tank3.fbx', 3.5),
-    emperor: TANK('/models/tanks/Tank4.fbx', 4.8),
+    conscript:  CHAR('Soldier', 'AK'),
+    hunter:     CHAR('Enemy', 'RocketLauncher'),
+    hacker:     CHAR('Enemy', 'Pistol'),
+    mantis:     CHAR('Enemy', 'Sniper'),
+    dozer:      VEH('dozer_b', 2.8, Math.PI),
+    supplyTruck: VEH('supply_truck', 3.2),
+    warmaster:  TANK('/models/tanks/Tank3.fbx', 3.5),
+    shredder:   VEH('shredder', 3.0, Math.PI / 2),
+    dragon:     VEH('dragon', 3.3, Math.PI / 2),
+    hellstorm:  VEH('hellstorm', 3.4),
+    emperor:    TANK('/models/tanks/Tank4.fbx', 4.8),
+    vulture:    AIR('vulture', 3.4, 0, 5.5),
   },
   syndicate: {
-    militant: RIFLE,
-    stinger: ROCKET,
-    scorpion: TANK('/models/tanks/Tank.fbx', 2.9),
+    worker:    CHAR('Hazmat', 'Shovel'),
+    militant:  CHAR('Soldier', 'AK'),
+    stinger:   CHAR('Enemy', 'RocketLauncher'),
+    fanatic:   CHAR('Hazmat', 'Knife_1'),
+    cobra:     CHAR('Soldier', 'Sniper_2'),
+    technical: VEH('technical', 2.9),
+    scorpion:  TANK('/models/tanks/Tank.fbx', 2.9),
+    quad:      VEH('quad', 2.6),
+    toxinTractor: VEH('toxin_tractor', 3.0),
+    buggy:     VEH('buggy', 2.6, Math.PI),
+    scud:      VEH('scud', 3.6),
   },
 };
+
+// every removable accessory mesh in the ToonShooter char files
+const CHAR_ACCESSORIES = new Set([
+  'AK', 'GrenadeLauncher', 'Knife_1', 'Knife_2', 'Pistol', 'Revolver',
+  'Revolver_Small', 'RocketLauncher', 'ShortCannon', 'Shotgun', 'Shovel',
+  'SMG', 'Sniper', 'Sniper_2', 'Icosphere',
+]);
 
 /* ── loading ────────────────────────────────────────────────────────────── */
 const rawCache = new Map();       // url → Promise<raw>
@@ -185,9 +225,19 @@ function buildTankTemplate(faction, key, def, raw) {
 }
 
 function buildCharTemplate(faction, key, def, raw) {
-  const g = normalize(SkeletonUtils.clone(raw.scene), def);
+  const src = SkeletonUtils.clone(raw.scene);
+  const drop = [];
+  src.traverse((o) => { if (o.isMesh && CHAR_ACCESSORIES.has(o.name) && o.name !== def.weapon) drop.push(o); });
+  for (const o of drop) o.parent.remove(o);
+  const g = normalize(src, def);
   tintMaterials(g, new THREE.Color(FACTION_COLORS[faction] ?? 0xd8b04a), def.tintAmt);
   templates.set(faction + '/' + key, { kind: 'char', def, g, animations: raw.animations, ...metrics(g) });
+}
+
+function buildStaticTemplate(faction, key, def, raw) {
+  const g = normalize(bakeStatic(raw.scene), def);
+  tintMaterials(g, new THREE.Color(FACTION_COLORS[faction] ?? 0xd8b04a), def.tintAmt);
+  templates.set(faction + '/' + key, { kind: 'static', def, g, ...metrics(g) });
 }
 
 export function preloadModels() {
@@ -195,7 +245,7 @@ export function preloadModels() {
   for (const [faction, keys] of Object.entries(MODEL_DEFS)) {
     for (const [key, def] of Object.entries(keys)) {
       jobs.push(loadRaw(def.url)
-        .then((raw) => (raw.kind === 'fbx' ? buildTankTemplate : buildCharTemplate)(faction, key, def, raw))
+        .then((raw) => (raw.kind === 'fbx' ? buildTankTemplate : def.anims ? buildCharTemplate : buildStaticTemplate)(faction, key, def, raw))
         .catch((e) => console.warn('[models] failed', faction, key, e?.message || e)));
     }
   }
@@ -227,7 +277,8 @@ export function createModelMesh(faction, key) {
   u.height = t.height;
   u.aimY = t.aimY;
   u.model = true;
-  if (t.kind === 'tank') {
+  if (t.def.hoverY) { u.hoverY = t.def.hoverY; u.air = true; }
+  if (t.kind === 'tank' || t.kind === 'static') {
     u.turret = g.getObjectByName('TurretPivot') || null;
     u.muzzle = g.getObjectByName('MuzzlePoint') || null;
     return g;

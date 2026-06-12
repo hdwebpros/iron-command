@@ -1,4 +1,4 @@
-// IRON COMMAND — AI Controller (skirmish opponent). DESIGN §11.
+// FREEDOM FIGHT — AI Controller (skirmish opponent). DESIGN §11.
 //
 // Construction:  new AIController(game, side, difficulty)   difficulty ∈ easy|hard|brutal
 // Per frame:     ai.tick(dt)

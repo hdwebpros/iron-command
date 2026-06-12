@@ -1,4 +1,4 @@
-// IRON COMMAND — AI self-test. Runs under plain `node`.
+// FREEDOM FIGHT — AI self-test. Runs under plain `node`.
 // Drives AIController vs AIController across all 3 faction matchup pairings at HARD,
 // then one easy-vs-brutal match. Asserts the DESIGN §11 behavior bar, prints compact
 // per-match summaries, exits 0 (green) / 1 (fail).
@@ -50,7 +50,7 @@ function main() {
   let failures = 0;
   const assert = (c, m) => { if (!c) { failures++; out.push('  FAIL: ' + m); } else out.push('  ok:   ' + m); return c; };
 
-  console.log('IRON COMMAND — AI self-test\n');
+  console.log('FREEDOM FIGHT — AI self-test\n');
 
   const matchups = [
     ['coalition', 'dominion'],

@@ -1,4 +1,4 @@
-// IRON COMMAND — sim self-test. Runs under plain `node` (proves sim purity:
+// FREEDOM FIGHT — sim self-test. Runs under plain `node` (proves sim purity:
 // any three/DOM import would throw here). Drives a SCRIPTED bot for both sides
 // across all 3 faction matchups, asserts the DESIGN §14 verification bar, prints
 // a compact summary, exits 0 on success / 1 on failure.
@@ -389,7 +389,7 @@ function assert(cond, msg) {
   return true;
 }
 
-console.log('IRON COMMAND — sim self-test\n');
+console.log('FREEDOM FIGHT — sim self-test\n');
 
 const matchups = [
   ['coalition', 'dominion'],

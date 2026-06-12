@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// IRON COMMAND — UI fallback metadata + inline SVG icon glyphs.
+// FREEDOM FIGHT — UI fallback metadata + inline SVG icon glyphs.
 // Keyed by the canonical entity keys (DESIGN §13.5). Used when ctx.factionData
 // does not carry a name/cost/buildTime/etc. for a given key, so the HUD always
 // renders sensibly. Icons are simple readable silhouettes (currentColor fill).

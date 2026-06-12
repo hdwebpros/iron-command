@@ -1,5 +1,5 @@
 /* ════════════════════════════════════════════════════════════════════════════
-   IRON COMMAND — UI layer
+   FREEDOM FIGHT — UI layer
    Plain DOM/CSS. Military-industrial AAA aesthetic. Offline (no external assets).
    All sizing in rem off a base; aggressive letter-spacing fakes a display font.
    ════════════════════════════════════════════════════════════════════════════ */
@@ -1722,3 +1722,35 @@ img.ic-art-icon {
 
 /* Power picker overlay (reserved; lightweight inline today) */
 .ic-power-picker { position: absolute; inset: 0; z-index: 18; }
+
+/* ── General intro video transition (menu → game) ───────────────────────── */
+.ic-intro-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: #000;
+  pointer-events: auto;
+  cursor: pointer;
+  animation: ic-intro-in 0.35s ease-out;
+}
+.ic-intro-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ic-intro-skip {
+  position: absolute;
+  right: 1.2rem;
+  bottom: 1rem;
+  font-family: var(--ic-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+.ic-intro-out { animation: ic-intro-fade 0.25s ease-in forwards; }
+@keyframes ic-intro-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ic-intro-fade { from { opacity: 1; } to { opacity: 0; } }

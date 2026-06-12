@@ -1,4 +1,4 @@
-// ─── IRON COMMAND — effects: pooled particles, projectiles, superweapons ───
+// ─── FREEDOM FIGHT — effects: pooled particles, projectiles, superweapons ───
 // Everything is pooled at construction time — no per-frame allocations in hot
 // paths. One Effects instance owns all pools (all parented under one group so
 // the renderer can hide FX wholesale for the minimap snapshot).

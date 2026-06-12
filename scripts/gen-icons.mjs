@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// ─── IRON COMMAND — bake painted hotbar icon art via Gemini image gen ────────
+// ─── FREEDOM FIGHT — bake painted hotbar icon art via Gemini image gen ────────
 // Generates one 1024px card portrait per entity/ability/power key into
 // assets-raw/icons/<key>.png (resumable: existing files are skipped).
 // Downscaling to public/icons/*.webp happens in a separate PIL step.

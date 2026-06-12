@@ -1,4 +1,4 @@
-// ─── IRON COMMAND — entity mesh factory ─────────────────────────────────────
+// ─── FREEDOM FIGHT — entity mesh factory ─────────────────────────────────────
 // Primitive-composed meshes for EVERY canonical (faction, key) in DESIGN §13.5.
 // All geometries & most materials are cached at module scope — never rebuilt
 // per spawn. Per-instance clones only where state needs it (power glow, flags).

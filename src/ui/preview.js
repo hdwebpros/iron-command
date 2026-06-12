@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// IRON COMMAND — UI dev harness (NOT shipped). Cycles hand-built mock states
+// FREEDOM FIGHT — UI dev harness (NOT shipped). Cycles hand-built mock states
 // through scenarios via ?scene=. Collects console errors into document.title.
 //   scenes: menu, hud-early, hud-production, hud-army, hud-general, hud-super,
 //           hud-lowpower, gameover, pause
@@ -40,7 +40,7 @@ const FACTIONS = {
     highlights: [{ key: 'emperor', name: 'Emperor Overlord' }, { key: 'conscript', name: 'Conscript Horde' }, { key: 'mantis', name: 'Mantis', hero: true }],
   },
   syndicate: {
-    name: 'Syndicate', general: 'Marcus "Hammer" Drago', color: '#3da64b',
+    name: 'Syndicate', general: 'Ali "Viper" Abazz', color: '#3da64b',
     blurb: 'Cheap swarms, stealth, and salvage. No power grid to defend — scavenge scrap and bury the enemy in numbers.',
     superweapon: 'Viper Storm',
     highlights: [{ key: 'scorpion', name: 'Scorpion Tank' }, { key: 'fanatic', name: 'Fanatic (suicide)' }, { key: 'cobra', name: 'Cobra', hero: true }],

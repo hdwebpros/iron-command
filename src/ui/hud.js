@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// IRON COMMAND — In-match HUD  (Zero Hour edition, DESIGN §13.3)
+// FREEDOM FIGHT — In-match HUD  (DESIGN §13.3)
 //
 // export function HUD(rootEl, cb) → {
 //   update(state, ctx),                  // ctx = {selection, factionData, minimapBase, cameraQuad, fog}
@@ -66,13 +66,16 @@ const POWERS_OF = {
 
 // ── Hotkey reference (DESIGN §12) ────────────────────────────────────────────
 const KEYREF = [
-  ['L-Drag', 'Box select'], ['L-Click', 'Select'], ['Dbl-Click', 'Select all of type'],
-  ['Shift+Click', 'Add / remove'], ['R-Click', 'Context order (move/attack/…)'],
-  ['A + Click', 'Attack-move'], ['S', 'Stop'], ['G', 'Guard'],
-  ['Ctrl+1–9', 'Assign group'], ['1–9', 'Select group (×2 center)'], ['E', 'Select same type'],
+  ['L-Click', 'Select / order (move, attack…)'], ['L-Drag', 'Box select'],
+  ['Dbl-Click', 'Select all of type'], ['Shift+Click', 'Add / remove'],
+  ['Ctrl+Click', 'Force attack'], ['R-Click', 'Deselect / cancel'],
+  ['R-Hold+Move', 'Scroll map'], ['A + Click', 'Attack-move'],
+  ['S', 'Stop'], ['G', 'Guard'], ['Q', 'Select all combat units'],
+  ['E', 'Same type on screen (×2 map)'],
+  ['Ctrl+1–9', 'Assign group'], ['1–9', 'Select group (×2 center)'], ['Alt+1–9', 'View group'],
   ['H', 'Jump to Command Center'], ['Space', 'Jump to last event'],
-  ['WASD / Edge', 'Pan camera'], ['Wheel', 'Zoom'],
-  ['B', 'Build menu'], ['F', 'Fire superweapon'], ['Esc / P', 'Pause'],
+  ['Arrows / Edge', 'Pan camera'], ['Wheel', 'Zoom'],
+  ['B', 'Select builder'], ['F', 'Fire superweapon'], ['Esc / P', 'Pause'],
 ];
 
 const TIPS = [
@@ -653,7 +656,8 @@ export function HUD(rootEl, cb = {}) {
     const units = productionUnits(e, faction, ctx);
     const money = (state.player && state.player.money) || 0;
     const built = builtStructKeys(state);
-    const hotkeys = ['Q','W','E','R','T','Y'];
+    // No per-card hotkey labels: Q/W/E/etc. are global command keys (Generals scheme).
+    const hotkeys = [];
     units.forEach((key, i) => {
       const cost = unitCost(ctx, key);
       const reqK = unitReq(ctx, key);
@@ -1213,7 +1217,7 @@ export function HUD(rootEl, cb = {}) {
         <div class="ic-pause-body">
           <div class="ic-pause-buttons">
             <button class="ic-btn ic-btn-primary" data-resume>Resume</button>
-            <button class="ic-btn" data-restart>Restart</button>
+            <button class="ic-btn" data-restart>Restart Current Game</button>
             <button class="ic-btn ic-btn-ghost" data-menu>Main Menu</button>
           </div>
           <div class="ic-keyref">

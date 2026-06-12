@@ -13,7 +13,8 @@ const SHOT = {
   sniper: 'shot_sniper', beam: 'shot_beam',
 };
 const SUPER = { orbitalLance: 'super_beam', nuclearMissile: 'super_nuke', viperStorm: 'exp_big' };
-const QUIET_SHOTS = new Set(['shot_rifle', 'shot_gatling']);
+// per-clip shot volume (default 0.7) — rapid-fire and missile launches stay subtle
+const SHOT_VOL = { shot_rifle: 0.45, shot_gatling: 0.45, shot_missile: 0.3 };
 
 // infantry keys (for death-sound choice) — defs are gone by the time 'death' fires
 const INFANTRY = new Set();
@@ -168,7 +169,7 @@ export function createSfx(game, { listenerPos } = {}) {
     const e = game.entity(ev.id);
     const n = SHOT[ev.weapon];
     if (!e || !n) return;
-    play(n, { x: e.x, z: e.z, vol: QUIET_SHOTS.has(n) ? 0.45 : 0.7, gapMs: 130 });
+    play(n, { x: e.x, z: e.z, vol: SHOT_VOL[n] ?? 0.7, gapMs: 130 });
   });
   on('hit', (ev) => {
     if (ev.weapon === 'flashbang') { play('flash', { x: ev.x, z: ev.z, vol: 0.7 }); return; }

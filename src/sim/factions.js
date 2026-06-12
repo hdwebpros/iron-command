@@ -1,4 +1,4 @@
-// IRON COMMAND — faction data. Pure data, zero imports.
+// FREEDOM FIGHT — faction data. Pure data, zero imports.
 // Keys are the canonical entity keys from DESIGN §13.5 — must match exactly.
 //
 // Unit fields: cost, build (s), hp, armor, pop, spd, vision; weapon {type,dps,range,...}.
@@ -111,7 +111,7 @@ export const FACTIONS = {
 
   syndicate: {
     name: 'Syndicate',
-    general: 'Marcus "Hammer" Drago',
+    general: 'Ali "Viper" Abazz',
     color: '#3da64b',
     blurb: 'Cheap swarm. Stealth, suicide, salvage scrap. Needs no power.',
     powerUser: false,

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# gen-voices.sh — Unit acknowledgment voice pack generator for Iron Command
+# gen-voices.sh — Unit acknowledgment voice pack generator for Freedom Fight
 # Idempotent: skips existing non-empty files. Batches of 4 with wait. Retries once on failure.
 # Output: public/sfx/voice/<unitKey>_<action><n>.mp3
 
