@@ -6,56 +6,56 @@
 const PI = Math.PI;
 
 export const MAP = {
-  size: 128,            // x,z ∈ [-64, 64]
-  cell: 2,              // fog/path grid cell size → 64×64 grid
-  border: 4,            // outer ring impassable: playable area |x|,|z| <= 60
+  size: 180,            // x,z ∈ [-90, 90]
+  cell: 2,              // fog/path grid cell size → 90×90 grid
+  border: 4,            // outer ring impassable: playable area |x|,|z| <= 86
 
   spawns: {
-    player: { x: -42, z: -42, angle: PI / 4 },
-    enemy:  { x: 42,  z: 42,  angle: PI / 4 + PI },
+    player: { x: -59, z: -59, angle: PI / 4 },
+    enemy:  { x: 59,  z: 59,  angle: PI / 4 + PI },
   },
 
   // Finite supply: docks are the big 400-box stacks, piles are small scatter
   supplyDocks: [
-    { x: -30, z: -48, amount: 30000 },  // player base dock
-    { x: 30,  z: 48,  amount: 30000 },  // enemy base dock
-    { x: -8,  z: 14,  amount: 30000 },  // contested center west
-    { x: 8,   z: -14, amount: 30000 },  // contested center east
+    { x: -42, z: -68, amount: 30000 },  // player base dock
+    { x: 42,  z: 68,  amount: 30000 },  // enemy base dock
+    { x: -11, z: 20,  amount: 30000 },  // contested center west
+    { x: 11,  z: -20, amount: 30000 },  // contested center east
   ],
   supplyPiles: [
-    { x: -52, z: 8,  amount: 6000 },
-    { x: 52,  z: -8, amount: 6000 },
+    { x: -73, z: 11,  amount: 6000 },
+    { x: 73,  z: -11, amount: 6000 },
   ],
 
   oilDerricks: [
-    { x: -2, z: -34 },
-    { x: 2,  z: 34 },
+    { x: -3, z: -48 },
+    { x: 3,  z: 48 },
   ],
 
   // Garrisonable neutral buildings: 5 infantry slots, 400 HP
   civBuildings: [
-    { x: -14, z: 0 }, { x: 14, z: 0 },
-    { x: 0, z: -6 },  { x: 0, z: 6 },
-    { x: -30, z: 24 }, { x: 30, z: -24 },
+    { x: -20, z: 0 }, { x: 20, z: 0 },
+    { x: 0, z: -8 },  { x: 0, z: 8 },
+    { x: -42, z: 34 }, { x: 42, z: -34 },
   ],
 
   // Impassable rock outcrops (ground units): 180°-symmetric, lanes >= 8 wide
   blockers: [
-    { x: -20, z: -8,  r: 5 }, { x: 20,  z: 8,   r: 5 },
-    { x: -34, z: 18,  r: 4 }, { x: 34,  z: -18, r: 4 },
-    { x: -6,  z: -26, r: 4 }, { x: 6,   z: 26,  r: 4 },
-    { x: -46, z: 24,  r: 5 }, { x: 46,  z: -24, r: 5 },
-    { x: -24, z: 38,  r: 6 }, { x: 24,  z: -38, r: 6 },
-    { x: -40, z: -12, r: 3 }, { x: 40,  z: 12,  r: 3 },
+    { x: -28, z: -11, r: 7 }, { x: 28,  z: 11,  r: 7 },
+    { x: -48, z: 25,  r: 6 }, { x: 48,  z: -25, r: 6 },
+    { x: -8,  z: -37, r: 6 }, { x: 8,   z: 37,  r: 6 },
+    { x: -65, z: 34,  r: 7 }, { x: 65,  z: -34, r: 7 },
+    { x: -34, z: 53,  r: 8 }, { x: 34,  z: -53, r: 8 },
+    { x: -56, z: -17, r: 4 }, { x: 56,  z: 17,  r: 4 },
   ],
 };
 
 // ─── Pure helpers (appended; do not mutate MAP) ─────────────────────────────
-// Grid: 64×64 cells of size MAP.cell=2 over x,z ∈ [-64,64].
+// Grid: 90×90 cells of size MAP.cell=2 over x,z ∈ [-90,90].
 
-export const GRID_W = MAP.size / MAP.cell; // 64
-export const GRID_H = MAP.size / MAP.cell; // 64
-const HALF = MAP.size / 2;                 // 64
+export const GRID_W = MAP.size / MAP.cell; // 90
+export const GRID_H = MAP.size / MAP.cell; // 90
+const HALF = MAP.size / 2;                 // 90
 
 // World coord → grid index (clamped).
 export function worldToCell(x, z) {
@@ -75,7 +75,7 @@ export function cellToWorld(cx, cz) {
 // 0 = passable, 1 = blocked (rock blocker or border ring). Aircraft ignore this.
 export function buildPassGrid() {
   const grid = new Uint8Array(GRID_W * GRID_H);
-  const playable = HALF - MAP.border; // 60
+  const playable = HALF - MAP.border; // 86
   for (let cz = 0; cz < GRID_H; cz++) {
     for (let cx = 0; cx < GRID_W; cx++) {
       const { x, z } = cellToWorld(cx, cz);

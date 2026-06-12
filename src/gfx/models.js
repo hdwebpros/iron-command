@@ -3,6 +3,17 @@
 // offset, forward = +Z), tints them per faction, and hands out instances that
 // carry the same userData contract as the procedural meshes (radius, height,
 // aimY, turret, muzzle) plus `anim` for clip-driven units.
+//
+// Two instancing strategies:
+//  · GLTF characters — SkeletonUtils.clone of a processed template (bone names
+//    are unique, cloning is safe) + an AnimationMixer per instance.
+//  · FBX tanks — the Quaternius tank rigs (armature-skinned hulls, duplicate
+//    bone names, FBX geometric transforms) do not survive cloning or
+//    reparenting. We bake them ONCE to plain static meshes (skinned verts
+//    sampled at the loaded pose), with an explicit TurretPivot/MuzzlePoint,
+//    and instances are cheap Group.clone(true) calls. Tread animation is
+//    dropped — the renderer's dust/wheel FX cover movement.
+//
 // Keys not in MODEL_DEFS keep their procedural mesh; until loading finishes
 // createEntityMesh also falls back to procedural and the renderer rebuilds
 // affected entities via onModelsReady().
@@ -12,12 +23,13 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { FACTION_COLORS } from './meshes.js';
 
-// fit: 'l' scales to footprint length, 'h' to height. yaw: model-forward → +Z.
-// tintAmt: lerp of every material color toward the faction color.
+// fit: 'l' scales to footprint length, 'h' to height. yaw: model-forward → +Z
+// (tank barrels point -X as authored, so +90°). tintAmt: lerp of material
+// colors toward the faction color.
 const CHAR_ANIMS = { idle: 'Idle', move: 'Run_Gun', shoot: 'Idle_Shoot', death: 'Death' };
 const TANK = (url, size) => ({
-  url, fit: 'l', size, yaw: Math.PI, tintAmt: 0.32,
-  turret: 'Tank_Turret', gun: 'Tank_Gun', anims: { move: 'Tank_Forward' },
+  url, fit: 'l', size, yaw: Math.PI / 2, tintAmt: 0.32,
+  turret: 'Tank_Turret', gun: 'Tank_Gun',
 });
 const RIFLE = { url: '/models/toonshooter/chars/Character_Soldier.gltf', fit: 'h', size: 1.25, yaw: Math.PI, tintAmt: 0.42, anims: CHAR_ANIMS };
 const ROCKET = { url: '/models/toonshooter/chars/Character_Enemy.gltf', fit: 'h', size: 1.25, yaw: Math.PI, tintAmt: 0.42, anims: CHAR_ANIMS };
@@ -42,42 +54,53 @@ const MODEL_DEFS = {
 };
 
 /* ── loading ────────────────────────────────────────────────────────────── */
-const rawCache = new Map();       // url → Promise<{scene, animations}>
-const templates = new Map();      // `${faction}/${key}` → processed template
+const rawCache = new Map();       // url → Promise<raw>
+const templates = new Map();      // `${faction}/${key}` → template
 let ready = false;
 const readyCbs = [];
 
+// raw: {kind:'gltf', scene, animations} | {kind:'fbx', scene}
 function loadRaw(url) {
   let p = rawCache.get(url);
   if (!p) {
-    p = (url.endsWith('.fbx') ? new FBXLoader() : new GLTFLoader()).loadAsync(url)
-      .then((r) => (r.scene ? { scene: r.scene, animations: r.animations || [] } : { scene: r, animations: r.animations || [] }));
+    p = url.endsWith('.fbx')
+      ? new FBXLoader().loadAsync(url).then((scene) => ({ kind: 'fbx', scene }))
+      : new GLTFLoader().loadAsync(url).then((g) => ({ kind: 'gltf', scene: g.scene, animations: g.animations || [] }));
     rawCache.set(url, p);
   }
   return p;
 }
 
-function buildTemplate(faction, key, def, raw) {
-  const inner = new THREE.Group();
-  const model = SkeletonUtils.clone(raw.scene);
-  inner.add(model);
-  inner.rotation.y = def.yaw || 0;
+/** Bake a (possibly skinned) hierarchy to flat world-space static meshes. */
+function bakeStatic(root) {
+  root.updateMatrixWorld(true);
+  const out = new THREE.Group();
+  const v = new THREE.Vector3();
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    const geo = o.geometry.clone();
+    if (o.isSkinnedMesh) {
+      o.skeleton.update();
+      const pos = geo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i);
+        o.applyBoneTransform(i, v);          // skinned position, mesh-local
+        pos.setXYZ(i, v.x, v.y, v.z);
+      }
+      geo.applyMatrix4(o.matrixWorld);
+      geo.computeVertexNormals();
+    } else {
+      geo.applyMatrix4(o.matrixWorld);
+    }
+    const m = new THREE.Mesh(geo, o.material);
+    m.name = o.name;
+    out.add(m);                              // all world-space, group identity
+  });
+  return out;
+}
 
-  // normalize: forward-baked rotation → scale to target → feet on the ground
-  let box = new THREE.Box3().setFromObject(inner);
-  const d = box.getSize(new THREE.Vector3());
-  const cur = def.fit === 'h' ? d.y : Math.max(d.x, d.z);
-  inner.scale.multiplyScalar(def.size / (cur || 1));
-  inner.updateMatrixWorld(true);
-  box = new THREE.Box3().setFromObject(inner);
-  const c = box.getCenter(new THREE.Vector3());
-  inner.position.set(-c.x, -box.min.y, -c.z);
-
-  const g = new THREE.Group();
-  g.add(inner);
-
-  // per-template material clones, tinted toward the faction color
-  const tint = new THREE.Color(FACTION_COLORS[faction] ?? 0xd8b04a);
+/** Tint + shadow-flag every mesh material (one clone per distinct material). */
+function tintMaterials(g, tint, amt) {
   const seen = new Map();
   g.traverse((o) => {
     if (!o.isMesh) return;
@@ -86,50 +109,85 @@ function buildTemplate(faction, key, def, raw) {
       let m2 = seen.get(mat);
       if (!m2) {
         m2 = mat.clone();
-        if (m2.color && def.tintAmt) m2.color.lerp(tint, def.tintAmt);
+        if (m2.color && amt) m2.color.lerp(tint, amt);
         seen.set(mat, m2);
       }
       return m2;
     };
     o.material = Array.isArray(o.material) ? o.material.map(fix) : fix(o.material);
   });
+}
 
-  // muzzle anchor at the gun-barrel tip (template forward = +Z)
-  let muzzleParentName = null, muzzleLocal = null;
-  if (def.gun) {
-    const gun = g.getObjectByName(def.gun);
-    if (gun) {
-      g.updateMatrixWorld(true);
-      const gb = new THREE.Box3().setFromObject(gun);
-      if (!gb.isEmpty()) {
-        const tip = new THREE.Vector3((gb.min.x + gb.max.x) / 2, (gb.min.y + gb.max.y) / 2, gb.max.z);
-        muzzleParentName = def.gun;
-        muzzleLocal = gun.worldToLocal(tip.clone());
-      }
-    }
-  }
-
-  // animation clips: resolve by name, drop tracks that would fight turret aiming
-  const clips = {};
-  if (def.anims) {
-    for (const [slot, name] of Object.entries(def.anims)) {
-      const clip = raw.animations.find((a) => a.name === name || a.name.endsWith('|' + name));
-      if (!clip) continue;
-      const c2 = clip.clone();
-      if (def.turret) c2.tracks = c2.tracks.filter((t) => !/Turret|Gun/i.test(t.name));
-      clips[slot] = c2;
-    }
-  }
-
+/** Wrap `content` so forward=+Z, footprint/height = def.size, feet at y=0. */
+function normalize(content, def) {
+  const inner = new THREE.Group();
+  inner.add(content);
+  inner.rotation.y = def.yaw || 0;
+  const g = new THREE.Group();
+  g.add(inner);
+  g.updateMatrixWorld(true);
+  let box = new THREE.Box3().setFromObject(g);
+  const d = box.getSize(new THREE.Vector3());
+  const cur = def.fit === 'h' ? d.y : Math.max(d.x, d.z);
+  inner.scale.setScalar(def.size / (cur || 1));
+  g.updateMatrixWorld(true);
   box = new THREE.Box3().setFromObject(g);
+  const c = box.getCenter(new THREE.Vector3());
+  inner.position.set(-c.x, -box.min.y, -c.z);
+  g.updateMatrixWorld(true);
+  return g;
+}
+
+function metrics(g) {
+  const box = new THREE.Box3().setFromObject(g);
   const dim = box.getSize(new THREE.Vector3());
-  templates.set(faction + '/' + key, {
-    g, def, clips, muzzleParentName, muzzleLocal,
-    radius: Math.max(dim.x, dim.z) / 2,
-    height: dim.y,
-    aimY: dim.y * 0.55,
-    skinned: !!raw.animations.length,
-  });
+  return { radius: Math.max(dim.x, dim.z) / 2, height: dim.y, aimY: dim.y * 0.55 };
+}
+
+function buildTankTemplate(faction, key, def, raw) {
+  // bake rig → static meshes (world space, loaded pose)
+  const baked = bakeStatic(raw.scene);
+
+  // re-root turret + gun onto a named pivot at the turret node's position so
+  // the renderer can yaw it (geometry shifts into pivot space)
+  const tNode = raw.scene.getObjectByName(def.turret);
+  const pivotPos = new THREE.Vector3();
+  if (tNode) tNode.getWorldPosition(pivotPos);
+  const pivot = new THREE.Object3D();
+  pivot.name = 'TurretPivot';
+  pivot.position.copy(pivotPos);
+  const turretMeshes = baked.children.filter((m) => m.name === def.turret || m.name === def.gun);
+  for (const m of turretMeshes) {
+    m.geometry.translate(-pivotPos.x, -pivotPos.y, -pivotPos.z);
+    pivot.add(m);                            // removes from baked.children
+  }
+  baked.add(pivot);
+
+  // muzzle: tip of the gun barrel — far end (from pivot) of its longest
+  // horizontal axis, in pivot space
+  const gunMesh = pivot.children.find((m) => m.name === def.gun);
+  if (gunMesh) {
+    gunMesh.geometry.computeBoundingBox();
+    const gb = gunMesh.geometry.boundingBox;
+    const ext = gb.getSize(new THREE.Vector3());
+    const ax = ext.x >= ext.z ? 'x' : 'z';
+    const tip = gb.getCenter(new THREE.Vector3());
+    tip[ax] = Math.abs(gb.min[ax]) > Math.abs(gb.max[ax]) ? gb.min[ax] : gb.max[ax];
+    const muz = new THREE.Object3D();
+    muz.name = 'MuzzlePoint';
+    muz.position.copy(tip);
+    pivot.add(muz);
+  }
+
+  const g = normalize(baked, def);
+  tintMaterials(g, new THREE.Color(FACTION_COLORS[faction] ?? 0xd8b04a), def.tintAmt);
+  templates.set(faction + '/' + key, { kind: 'tank', def, g, ...metrics(g) });
+}
+
+function buildCharTemplate(faction, key, def, raw) {
+  const g = normalize(SkeletonUtils.clone(raw.scene), def);
+  tintMaterials(g, new THREE.Color(FACTION_COLORS[faction] ?? 0xd8b04a), def.tintAmt);
+  templates.set(faction + '/' + key, { kind: 'char', def, g, animations: raw.animations, ...metrics(g) });
 }
 
 export function preloadModels() {
@@ -137,7 +195,7 @@ export function preloadModels() {
   for (const [faction, keys] of Object.entries(MODEL_DEFS)) {
     for (const [key, def] of Object.entries(keys)) {
       jobs.push(loadRaw(def.url)
-        .then((raw) => buildTemplate(faction, key, def, raw))
+        .then((raw) => (raw.kind === 'fbx' ? buildTankTemplate : buildCharTemplate)(faction, key, def, raw))
         .catch((e) => console.warn('[models] failed', faction, key, e?.message || e)));
     }
   }
@@ -163,34 +221,29 @@ export function hasModel(faction, key) {
 export function createModelMesh(faction, key) {
   const t = templates.get(faction + '/' + key);
   if (!t) return null;
-  const g = t.skinned ? SkeletonUtils.clone(t.g) : t.g.clone(true);
+  const g = t.kind === 'char' ? SkeletonUtils.clone(t.g) : t.g.clone(true);
   const u = g.userData;
   u.radius = t.radius;
   u.height = t.height;
   u.aimY = t.aimY;
   u.model = true;
-  if (t.def.turret) u.turret = g.getObjectByName(t.def.turret) || null;
-  if (t.muzzleParentName && t.muzzleLocal) {
-    const parent = g.getObjectByName(t.muzzleParentName);
-    if (parent) {
-      const muz = new THREE.Object3D();
-      muz.position.copy(t.muzzleLocal);
-      parent.add(muz);
-      u.muzzle = muz;
-    }
+  if (t.kind === 'tank') {
+    u.turret = g.getObjectByName('TurretPivot') || null;
+    u.muzzle = g.getObjectByName('MuzzlePoint') || null;
+    return g;
   }
-  const slots = Object.keys(t.clips);
-  if (slots.length) {
-    const mixer = new THREE.AnimationMixer(g);
-    const actions = {};
-    for (const slot of slots) actions[slot] = mixer.clipAction(t.clips[slot]);
-    if (actions.death) {
-      actions.death.setLoop(THREE.LoopOnce, 1);
-      actions.death.clampWhenFinished = true;
-    }
-    u.anim = { mixer, actions, cur: null, lastAttackT: -1e9 };
-    const start = actions.idle || actions.move;
-    if (start) { start.play(); u.anim.cur = start; }
+  // characters: per-instance mixer with idle/move/shoot/death actions
+  const mixer = new THREE.AnimationMixer(g);
+  const actions = {};
+  for (const [slot, name] of Object.entries(t.def.anims || {})) {
+    const clip = t.animations.find((a) => a.name === name);
+    if (clip) actions[slot] = mixer.clipAction(clip);
   }
+  if (actions.death) {
+    actions.death.setLoop(THREE.LoopOnce, 1);
+    actions.death.clampWhenFinished = true;
+  }
+  u.anim = { mixer, actions, cur: null, lastAttackT: -1e9 };
+  if (actions.idle) { actions.idle.play(); u.anim.cur = actions.idle; }
   return g;
 }

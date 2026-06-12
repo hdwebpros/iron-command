@@ -16,6 +16,7 @@ import {
   rankTexture, FACTION_COLORS, SIDE_COLORS, INFANTRY_KEYS,
 } from './meshes.js';
 import { createTerrain } from './terrain.js';
+import { preloadModels, onModelsReady, hasModel } from './models.js';
 import { Effects } from './effects.js';
 import { MAP } from '../sim/map.js';
 
@@ -119,6 +120,19 @@ export class GfxEngine {
     this._game = null;
     this._handlers = [];
     this.skipRender = false;   // dev harness: step simulation visuals without compositing
+
+    // CC0 unit models load in the background; entities spawned before that
+    // finish get procedural meshes, then rebuild once the templates exist.
+    preloadModels();
+    onModelsReady(() => {
+      if (this._disposed) return;
+      for (const [id, rec] of [...this._recs]) {
+        if (hasModel(rec.group.userData.faction, rec.key)) {
+          this._entityLayer.remove(rec.group);
+          this._recs.delete(id);
+        }
+      }
+    });
 
     const w = canvasEl.clientWidth || window.innerWidth;
     const h = canvasEl.clientHeight || window.innerHeight;
@@ -323,10 +337,11 @@ export class GfxEngine {
 
   /* ── fog of war overlay ────────────────────────────────────────────────── */
   _buildFog() {
+    this._fogN = MAP.size / MAP.cell; // fog grid is N×N cells
     this._fogSmall = document.createElement('canvas');
-    this._fogSmall.width = this._fogSmall.height = 64;
+    this._fogSmall.width = this._fogSmall.height = this._fogN;
     this._fogSmallCtx = this._fogSmall.getContext('2d');
-    this._fogImg = this._fogSmallCtx.createImageData(64, 64);
+    this._fogImg = this._fogSmallCtx.createImageData(this._fogN, this._fogN);
     // pre-fill alpha shroud so the first frame (before any fog data) is dark? no —
     // default fully visible so menu/preview scenes without fog stay clean.
     this._fogBig = document.createElement('canvas');
@@ -360,7 +375,7 @@ export class GfxEngine {
     this._fogAcc = 0;
     const d = this._fogImg.data;
     const grid = fog.grid;
-    const n = Math.min(grid.length, 64 * 64);
+    const n = Math.min(grid.length, this._fogN * this._fogN);
     for (let i = 0; i < n; i++) {
       const v = grid[i];
       const i4 = i * 4;
@@ -372,7 +387,8 @@ export class GfxEngine {
     c.clearRect(0, 0, 256, 256);
     c.filter = 'blur(3px)';
     c.imageSmoothingEnabled = true;
-    c.drawImage(this._fogSmall, -4, -4, 264, 264);
+    const pad = 256 / this._fogN; // bleed one fog cell past each edge
+    c.drawImage(this._fogSmall, -pad, -pad, 256 + 2 * pad, 256 + 2 * pad);
     c.filter = 'none';
     this._fogTex.needsUpdate = true;
   }
@@ -408,6 +424,7 @@ export class GfxEngine {
         rec.aimTtl = 2.0;
       }
       const ud = rec.group.userData;
+      if (ud.anim) ud.anim.lastAttackT = this._time;
       const muz = ud.muzzle;
       if (muz) muz.getWorldPosition(_v1);
       else _v1.set(rec.x, rec.y + (ud.aimY || 0.4), rec.z);
@@ -863,7 +880,16 @@ export class GfxEngine {
       fx.infantryDeath(x, z);
       if (rec) {
         this._recs.delete(id);
-        this._dying.push({ g: rec.group, t: 0, ttl: 1.0, kind: 'infantry' });
+        const a = rec.group.userData.anim;
+        if (a?.actions.death) {
+          // model infantry play their own Death clip instead of the topple
+          if (a.cur) a.cur.fadeOut(0.08);
+          a.actions.death.reset().fadeIn(0.08).play();
+          a.cur = a.actions.death;
+          this._dying.push({ g: rec.group, t: 0, ttl: 1.6, kind: 'infantryModel' });
+        } else {
+          this._dying.push({ g: rec.group, t: 0, ttl: 1.0, kind: 'infantry' });
+        }
       }
     } else if (rec && rec.air) {
       // aircraft: flame out, tumble, ground burst
@@ -893,6 +919,9 @@ export class GfxEngine {
         const e = Math.min(1, t * 2.2);
         d.g.rotation.x = -e * Math.PI / 2 * 0.94;
         if (t > 0.45) setMeshOpacity(d.g, 1 - (t - 0.45) / 0.55);
+      } else if (d.kind === 'infantryModel') {
+        d.g.userData.anim?.mixer.update(dt);
+        if (t > 0.6) setMeshOpacity(d.g, 1 - (t - 0.6) / 0.4);
       } else if (d.kind === 'structure') {
         const e = t * t;
         d.g.scale.y = Math.max(0.06, 1 - e * 0.95);

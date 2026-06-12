@@ -6,6 +6,9 @@
 // ════════════════════════════════════════════════════════════════════════════
 import { Menu } from './menu.js';
 import { HUD } from './hud.js';
+import { preloadModels } from '../gfx/models.js';
+
+preloadModels(); // so 3D entity icons use the real GLTF models, as in-game
 
 // ── Error collection → document.title ────────────────────────────────────────
 const ERRS = [];

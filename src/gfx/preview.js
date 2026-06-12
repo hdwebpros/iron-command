@@ -537,6 +537,65 @@ async function buildModelsScene() {
 
 }
 
+/* ── debug: dump FBX hierarchy + animation tracks as <pre> (dev only) ───── */
+async function buildDumpScene() {
+  const { FBXLoader } = await import('three/addons/loaders/FBXLoader.js');
+  const url = PARAMS.get('url') || '/models/tanks/Tank2.fbx';
+  let obj;
+  if (PARAMS.get('inst')) {
+    const M = await import('./models.js');
+    await M.preloadModels();
+    obj = M.createModelMesh(PARAMS.get('f') || 'coalition', PARAMS.get('k') || 'paladin');
+    obj.updateWorldMatrix(true, true);
+    const lines2 = ['INSTANCE ' + (PARAMS.get('k') || 'paladin')];
+    const wp = new THREE.Vector3(), ws = new THREE.Vector3();
+    obj.traverse((o) => {
+      if (!o.name && !o.isMesh) return;
+      o.getWorldPosition(wp); o.getWorldScale(ws);
+      const bb = o.isMesh ? new THREE.Box3().setFromObject(o) : null;
+      lines2.push(`${o.type} "${o.name}" world=(${wp.toArray().map((v) => v.toFixed(2))}) wscl=(${ws.toArray().map((v) => v.toFixed(4))})` +
+        (bb ? ` bbox=(${bb.min.toArray().map((v) => v.toFixed(2))})..(${bb.max.toArray().map((v) => v.toFixed(2))})` : ''));
+    });
+    const pre2 = document.createElement('pre');
+    pre2.id = 'dump';
+    pre2.textContent = lines2.join('\n');
+    document.body.appendChild(pre2);
+    tick = () => {};
+    return;
+  }
+  if (PARAMS.get('parse')) {
+    const buf = await (await fetch(url)).arrayBuffer();
+    obj = new FBXLoader().parse(buf, PARAMS.get('path') ?? '');
+  } else {
+    obj = await new FBXLoader().loadAsync(url);
+  }
+  const lines = ['URL ' + url + (PARAMS.get('parse') ? ' (fetch+parse)' : ' (loadAsync)')];
+  obj.updateWorldMatrix(true, true);
+  for (const nm of ['Tank_Turret', 'Tank_Gun', 'Tank_body', 'TrackMeshL']) {
+    const n = obj.getObjectByName(nm);
+    if (!n) continue;
+    const bb = new THREE.Box3().setFromObject(n);
+    lines.push(`BBOX ${nm}: (${bb.min.toArray().map((v) => v.toFixed(1))})..(${bb.max.toArray().map((v) => v.toFixed(1))})`);
+  }
+  obj.traverse((o) => {
+    let d = 0, p = o;
+    while (p !== obj && p.parent) { d++; p = p.parent; }
+    lines.push(
+      '  '.repeat(d) + `${o.type} "${o.name}" pos=(${o.position.toArray().map((v) => v.toFixed(2))}) scl=(${o.scale.toArray().map((v) => v.toFixed(3))}) rot=(${o.rotation.toArray().slice(0, 3).map((v) => Number(v).toFixed(3))})` +
+      (o.isSkinnedMesh ? ` bones=${o.skeleton.bones.length}` : '')
+    );
+  });
+  for (const a of obj.animations || []) {
+    lines.push(`CLIP "${a.name}" dur=${a.duration.toFixed(2)}`);
+    for (const t of a.tracks) lines.push(`  TRACK ${t.name} n=${t.times.length} v0=(${[...t.values.slice(0, 4)].map((v) => Number(v).toFixed(2))})`);
+  }
+  const pre = document.createElement('pre');
+  pre.id = 'dump';
+  pre.textContent = lines.join('\n');
+  document.body.appendChild(pre);
+  tick = () => {};
+}
+
 /* ── scene select ───────────────────────────────────────────────────────── */
 switch (SCENE) {
   case 'dominion': buildFactionScene('dominion'); break;
@@ -546,6 +605,7 @@ switch (SCENE) {
   case 'fog': buildFogScene(); break;
   case 'perf': buildPerfScene(); break;
   case 'models': tick = () => {}; buildModelsScene(); break;
+  case 'dump': tick = () => {}; buildDumpScene(); break;
   default: buildFactionScene('coalition');
 }
 

@@ -22,6 +22,8 @@ import {
   unitMeta, structMeta, powerMeta, abilityMeta,
   UNIT_META, STRUCT_META, POWER_META,
 } from './meta.js';
+import { MAP } from '../sim/map.js';
+import { entityIcon, emblemIcon } from './icons.js';
 
 const C = 'currentColor';
 const FACTION_COLOR = { coalition: '#2e7bff', dominion: '#e03c2e', syndicate: '#3da64b' };
@@ -417,7 +419,7 @@ export function HUD(rootEl, cb = {}) {
       chip.style.setProperty('--sw', col);
       const sname = s.key ? structName({ factionData: null }, s.key) : 'Superweapon';
       chip.innerHTML = `
-        <div class="ic-super-icon">${svg('0 0 40 36', glyph(s.key || 'orbitalLance'), '')}</div>
+        <div class="ic-super-icon">${entityIcon(s.key || 'orbitalLance', { faction: s.faction })}</div>
         <div class="ic-super-meta">
           <div class="ic-super-name">${s.side === 'enemy' ? 'ENEMY ' : ''}${sname}</div>
           <div class="ic-super-time">${s.ready ? 'READY' : fmtCount(s.left)}</div>
@@ -441,8 +443,9 @@ export function HUD(rootEl, cb = {}) {
   // MINIMAP
   // ════════════════════════════════════════════════════════════════════════
   const MM = 240;            // canvas px
-  const WORLD = 128;         // [-64,64]
-  function w2m(x) { return ((x + 64) / WORLD) * MM; }
+  const WORLD = MAP.size;    // [-WORLD/2, WORLD/2]
+  const WHALF = WORLD / 2;
+  function w2m(x) { return ((x + WHALF) / WORLD) * MM; }
   let pingList = [];         // {x,z,kind,t0}
   function drawMinimap(state, ctx) {
     const g = mmCtx;
@@ -519,8 +522,8 @@ export function HUD(rootEl, cb = {}) {
     const rect = mmCanvas.getBoundingClientRect();
     const cx = (e.clientX - rect.left) / rect.width;
     const cz = (e.clientY - rect.top) / rect.height;
-    const wx = cx * WORLD - 64, wz = cz * WORLD - 64;
-    fn(Math.max(-64, Math.min(64, wx)), Math.max(-64, Math.min(64, wz)));
+    const wx = cx * WORLD - WHALF, wz = cz * WORLD - WHALF;
+    fn(Math.max(-WHALF, Math.min(WHALF, wx)), Math.max(-WHALF, Math.min(WHALF, wz)));
   }
   let mmDragging = false;
   mmCanvas.addEventListener('mousedown', (e) => {
@@ -596,7 +599,7 @@ export function HUD(rootEl, cb = {}) {
   // -- Idle: faction emblem watermark + tip ticker --
   function renderIdlePanel(state, ctx, faction) {
     cmdInfo.innerHTML = `<div class="ic-watermark" style="--accent:${facColor(faction)}">
-      ${svg('0 0 40 36', glyph('commandCenter'), 'ic-watermark-glyph')}
+      ${entityIcon('commandCenter', { faction, cls: 'ic-watermark-glyph' })}
       <div class="ic-watermark-text">No Selection</div>
     </div>`;
     cmdGrid.innerHTML = `<div class="ic-tip" data-tip>${TIPS[cache.tipIdx]}</div>`;
@@ -632,7 +635,7 @@ export function HUD(rootEl, cb = {}) {
       const locked = !reqMet;
       const card = makeCard({
         key, name: structName(ctx, key), cost, time: structTime(ctx, key),
-        glyphKey: key, locked, afford,
+        glyphKey: key, faction, locked, afford,
         hero: false, sup: !!(STRUCT_META[key] && STRUCT_META[key].super),
         lockText: locked ? `Requires ${prettyReq(reqKey)}` : (!afford ? 'Insufficient funds' : ''),
       });
@@ -661,7 +664,7 @@ export function HUD(rootEl, cb = {}) {
       const locked = !reqMet || heroAlive;
       const card = makeCard({
         key, name: unitName(ctx, key), cost, time: unitTime(ctx, key),
-        glyphKey: key, locked, afford, hero,
+        glyphKey: key, faction, locked, afford, hero,
         hotkey: hotkeys[i] || '',
         lockText: heroAlive ? 'Hero already deployed' : (!reqMet ? `Requires ${prettyReq(reqK)}` : (!afford ? 'Insufficient funds' : '')),
       });
@@ -680,7 +683,7 @@ export function HUD(rootEl, cb = {}) {
     queue.forEach((q, i) => {
       const it = el('div', 'ic-queue-item' + (i === 0 ? ' ic-active' : ''));
       it.title = (unitName(ctx, q.key) || pretty(q.key)) + ' — click to cancel';
-      it.innerHTML = `${svg('0 0 40 36', glyph(q.key), 'ic-queue-icon')}<div class="ic-queue-prog" style="height:${Math.round((q.progress || 0) * 100)}%"></div>`;
+      it.innerHTML = `${entityIcon(q.key, { faction: e.faction, cls: 'ic-queue-icon' })}<div class="ic-queue-prog" style="height:${Math.round((q.progress || 0) * 100)}%"></div>`;
       it.addEventListener('click', () => { onCancelQueue(e.id, i); blip(300, 0.05, 'sawtooth'); });
       qitems.appendChild(it);
     });
@@ -757,7 +760,7 @@ export function HUD(rootEl, cb = {}) {
       const key = (u && u.key) || 'trooper';
       const slot = el('div', 'ic-garrison-slot');
       slot.title = unitName(ctx, key);
-      slot.innerHTML = svg('0 0 40 36', glyph(key), 'ic-garrison-icon');
+      slot.innerHTML = entityIcon(key, { faction: u && u.faction, cls: 'ic-garrison-icon' });
       occ.appendChild(slot);
     });
     if (!ids.length) occ.innerHTML = '<div class="ic-queue-empty">Empty</div>';
@@ -782,7 +785,7 @@ export function HUD(rootEl, cb = {}) {
       const pc = el('div', 'ic-pp' + (isHero ? ' ic-pp-hero' : ''));
       pc.title = unitName(ctx, u.key) + (u.vet ? ` (vet ${u.vet})` : '');
       pc.innerHTML = `
-        ${svg('0 0 40 36', glyph(u.key), 'ic-pp-icon')}
+        ${entityIcon(u.key, { faction: u.faction || faction, cls: 'ic-pp-icon' })}
         ${u.vet ? `<span class="ic-pp-vet">${'★'.repeat(Math.min(3, u.vet))}</span>` : ''}
         ${u.stealthed ? '<span class="ic-pp-stealth">◇</span>' : ''}
         <div class="ic-pp-hp"><div class="ic-pp-hp-fill" style="width:${Math.round(frac * 100)}%;background:${hpColor(frac)}"></div></div>`;
@@ -811,7 +814,7 @@ export function HUD(rootEl, cb = {}) {
         const card = el('div', 'ic-ability' + (cdLeft > 0.05 ? ' ic-cooling' : ''));
         card.dataset.ability = a;
         card.title = m.n;
-        card.innerHTML = `${svg('0 0 40 40', abilityGlyph(a), 'ic-ability-icon')}<span class="ic-ability-name">${m.n}</span>
+        card.innerHTML = `${emblemIcon(a, 'ic-ability-icon') || svg('0 0 40 40', abilityGlyph(a), 'ic-ability-icon')}<span class="ic-ability-name">${m.n}</span>
           <div class="ic-ability-cd" style="--cd-deg:${cdLeft > 0.05 ? Math.round(Math.min(1, cdLeft / (m.cd || 10)) * 360) : 0}deg"><span>${cdLeft > 0.05 ? Math.ceil(cdLeft) : ''}</span></div>`;
         if (cdLeft <= 0.05) card.addEventListener('click', () => { onAbility(unit.id, a); blip(800, 0.05); });
         cmdGrid.appendChild(card);
@@ -909,7 +912,7 @@ export function HUD(rootEl, cb = {}) {
     const powered = e.powered;
     target.className = 'ic-cmd-info ic-single-info';
     target.innerHTML = `
-      <div class="ic-portrait-big">${svg('0 0 40 36', glyph(e.key), 'ic-portrait-glyph')}</div>
+      <div class="ic-portrait-big">${entityIcon(e.key, { faction: e.faction, cls: 'ic-portrait-glyph' })}</div>
       <div class="ic-portrait-meta">
         <div class="ic-portrait-name">${name}</div>
         <div class="ic-portrait-hp"><div class="ic-portrait-hp-fill" style="width:${Math.round(frac * 100)}%;background:${hpColor(frac)}"></div>
@@ -931,7 +934,7 @@ export function HUD(rootEl, cb = {}) {
       ${o.hotkey ? `<span class="ic-card-hotkey">${o.hotkey}</span>` : ''}
       ${o.hero ? '<span class="ic-card-herolabel">HERO</span>' : ''}
       ${o.sup ? '<span class="ic-card-herolabel ic-suplabel">SUPER</span>' : ''}
-      ${svg('0 0 40 36', glyph(o.glyphKey), 'ic-card-icon')}
+      ${entityIcon(o.glyphKey, { faction: o.faction, cls: 'ic-card-icon' })}
       <span class="ic-card-name">${o.name}</span>
       <span class="ic-card-cost">$${o.cost}</span>
       ${(o.locked) ? `<div class="ic-card-lock">${svg('0 0 24 24', `<rect x="6" y="11" width="12" height="9" rx="1" fill="${C}"/><path d="M8 11 V8 a4 4 0 0 1 8 0 v3" stroke="${C}" stroke-width="2" fill="none"/>`, 'ic-lock-icon')}</div>` : ''}`;
@@ -1086,7 +1089,7 @@ export function HUD(rootEl, cb = {}) {
       const deg = (isOwned && cd > 0.05) ? Math.round((1 - Math.min(1, cd / (m.cd || 60))) * 360) : 360;
       btn.innerHTML = `
         <div class="ic-pwr-ring" style="--pw-deg:${deg}deg"></div>
-        ${svg('0 0 40 40', powerGlyph(key), 'ic-pwr-icon')}
+        ${emblemIcon(key, 'ic-pwr-icon') || svg('0 0 40 40', powerGlyph(key), 'ic-pwr-icon')}
         ${isOwned && m.levels ? `<span class="ic-pwr-lvl">${lvl}${m.levels ? '/' + m.levels : ''}</span>` : ''}
         ${(!isOwned && !rankGated) ? `<span class="ic-pwr-buy-badge">${m.cost || 1}pt</span>` : ''}
         ${rankGated && !isOwned ? `<span class="ic-pwr-rank">R${m.rank}</span>` : ''}

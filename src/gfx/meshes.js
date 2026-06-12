@@ -2,7 +2,11 @@
 // Primitive-composed meshes for EVERY canonical (faction, key) in DESIGN §13.5.
 // All geometries & most materials are cached at module scope — never rebuilt
 // per spawn. Per-instance clones only where state needs it (power glow, flags).
+// Keys listed in models.js MODEL_DEFS use loaded CC0 models instead; the
+// procedural builder remains the fallback while those load (and for husks
+// spawned before the swap).
 import * as THREE from 'three';
+import { createModelMesh } from './models.js';
 
 export const FACTION_COLORS = { coalition: 0x2e7bff, dominion: 0xe03c2e, syndicate: 0x3da64b, neutral: 0xd8b04a };
 export const SIDE_COLORS = { player: 0x3da0ff, enemy: 0xff5238, neutral: 0xffd84d };
@@ -1245,7 +1249,7 @@ export function createEntityMesh(ent) {
   if (!faction || !REG[faction][key]) faction = findFaction(key);
   const m = pal(faction);
   const builder = REG[faction][key] || N_WORLD.crate;
-  const g = builder(m, side);
+  const g = createModelMesh(faction, key) || builder(m, side);
   g.userData.key = key;
   g.userData.faction = faction;
   g.userData.side = side;
@@ -1260,7 +1264,7 @@ export function createEntityMesh(ent) {
     g.traverse((o) => { if (o.isMesh) { o.material = (i++ % 3) ? charMat() : charMat2(); } });
     g.rotation.z = 0.06; g.rotation.x = -0.03;
     const u = g.userData;
-    u.spinners = null; u.legs = null; u.wheels = null; u.flags = null; u.husk = true;
+    u.spinners = null; u.legs = null; u.wheels = null; u.flags = null; u.anim = null; u.husk = true;
     return g;
   }
 
@@ -1312,6 +1316,20 @@ export function overrideMaterials(g, mat) {
 export function animateEntityMesh(g, dt, time, moving) {
   const u = g?.userData;
   if (!u) return;
+  if (u.anim) {
+    // clip-driven model: move ↔ shoot ↔ idle (tanks only have `move`)
+    const a = u.anim;
+    let want = null;
+    if (moving && a.actions.move) want = a.actions.move;
+    else if (a.actions.shoot && time - a.lastAttackT < 1.1) want = a.actions.shoot;
+    else want = a.actions.idle || null;
+    if (want !== a.cur) {
+      if (a.cur) a.cur.fadeOut(0.18);
+      if (want) want.reset().fadeIn(0.18).play();
+      a.cur = want;
+    }
+    a.mixer.update(dt);
+  }
   if (u.spinners) for (let i = 0; i < u.spinners.length; i++) {
     const s = u.spinners[i];
     s.o.rotation[s.ax] += s.sp * dt * (s.idle || moving ? 1 : 0.15);

@@ -70,7 +70,7 @@ class MinHeap {
   }
 }
 
-// ─── A* on the 64×64 grid ───────────────────────────────────────────────────
+// ─── A* on the GRID_W×GRID_H grid ───────────────────────────────────────────────────
 // Returns array of world-space waypoints {x,z} from start to goal, or null.
 const NEI = [
   [1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1],
@@ -98,7 +98,7 @@ export function findPath(grid, sx, sz, gx, gz) {
   heap.push(startI, h(s.cx, s.cz));
   const closed = new Set();
   let iterations = 0;
-  const MAX_ITER = 4096;
+  const MAX_ITER = GRID_W * GRID_H;
 
   while (heap.size > 0 && iterations++ < MAX_ITER) {
     const cur = heap.pop();

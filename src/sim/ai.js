@@ -894,8 +894,8 @@ export class AIController {
   // Is an enemy entity known to us via fog of war (DESIGN §11: easy/hard obey fog)?
   _isKnown(e) {
     const fog = this.game.sideFog(this.side);
-    const cx = Math.floor((e.x + 64) / fog.cell);
-    const cz = Math.floor((e.z + 64) / fog.cell);
+    const cx = Math.floor((e.x + MAP.size / 2) / fog.cell);
+    const cz = Math.floor((e.z + MAP.size / 2) / fog.cell);
     if (cx < 0 || cz < 0 || cx >= fog.w || cz >= fog.h) return false;
     return fog.grid[cz * fog.w + cx] === 2;
   }

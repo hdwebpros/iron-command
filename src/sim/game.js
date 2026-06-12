@@ -24,7 +24,7 @@ import { MAP, GRID_W, GRID_H, buildPassGrid, worldToCell, cellToWorld } from './
 import { SpatialHash, findPath } from './path.js';
 
 const HALF = MAP.size / 2;
-const PLAYABLE = HALF - MAP.border; // 60
+const PLAYABLE = HALF - MAP.border; // 86
 const FOG_W = GRID_W, FOG_H = GRID_H;
 const DETECT_RADIUS = 4;     // enemy detector range that reveals stealth
 const VISION_REVEAL = 5;     // enemy unit within this reveals stealth

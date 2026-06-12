@@ -1,14 +1,14 @@
 // ─── IRON COMMAND — Scorched Basin terrain ──────────────────────────────────
-// 128×128 golden-hour desert built straight from the frozen MAP data:
+// MAP.size² golden-hour desert built straight from the frozen MAP data:
 // procedural 2048px diffuse (fbm sand, tire tracks, scorch), impassable
 // mountain ring on the 4-unit border, rock outcrops at every blocker,
 // debris props outside the play lanes, drifting dust.
 import * as THREE from 'three';
 import { MAP } from '../sim/map.js';
 
-const SIZE = MAP.size;          // 128
-const HALF = SIZE / 2;          // 64
-const PLAY = HALF - MAP.border; // 60 — playable extent
+const SIZE = MAP.size;          // 180
+const HALF = SIZE / 2;          // 90
+const PLAY = HALF - MAP.border; // 86 — playable extent
 const TEX = 2048;
 
 /* ── deterministic value noise ──────────────────────────────────────────── */
@@ -57,7 +57,7 @@ function paintGround() {
   const cv = document.createElement('canvas');
   cv.width = cv.height = TEX;
   const c = cv.getContext('2d');
-  const px = TEX / SIZE; // pixels per world unit (16)
+  const px = TEX / SIZE; // pixels per world unit
 
   // base sand mottle — broad dune patches over packed earth, painted low-res
   {
@@ -289,7 +289,7 @@ function buildGround() {
   diff.colorSpace = THREE.SRGBColorSpace;
   diff.anisotropy = 8;
   diff.wrapS = diff.wrapT = THREE.ClampToEdgeWrapping;
-  // plane is 138 wide but the texture maps the 128 map: scale UVs
+  // plane is SIZE+10 wide but the texture maps the SIZE map: scale UVs
   const k = (SIZE + 10) / SIZE;
   diff.repeat.set(k, k);
   diff.offset.set(-(k - 1) / 2, -(k - 1) / 2);
