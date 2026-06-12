@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Iron Command — UI Preview</title>
+    <link rel="stylesheet" href="/src/ui/styles.css" />
+    <style>
+      /* faux 3D backdrop so HUD reads against terrain-ish colour */
+      #game-canvas {
+        background:
+          radial-gradient(ellipse 80% 60% at 50% 40%, #5a4a2e 0%, #3a2f1c 45%, #1a1510 100%);
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="game-canvas"></canvas>
+    <div id="ui-root"></div>
+    <script type="module" src="/src/ui/preview.js"></script>
+  </body>
+</html>

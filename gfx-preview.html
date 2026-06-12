@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GFX_BOOT</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #120d08; overflow: hidden; }
+    #cv { width: 100vw; height: 100vh; display: block; }
+    #nav { position: fixed; top: 8px; left: 8px; z-index: 9; font: 12px system-ui; }
+    #nav a { color: #ffd84d; margin-right: 10px; text-decoration: none; opacity: .85; }
+  </style>
+  <script>
+    window.__ERRS = [];
+    window.addEventListener('error', (e) => window.__ERRS.push(String(e.message || 'err')));
+    window.addEventListener('unhandledrejection', (e) => window.__ERRS.push(String(e.reason || 'rej')));
+  </script>
+</head>
+<body>
+  <canvas id="cv"></canvas>
+  <nav id="nav">
+    <a href="?scene=coalition">coalition</a>
+    <a href="?scene=dominion">dominion</a>
+    <a href="?scene=syndicate">syndicate</a>
+    <a href="?scene=neutral">neutral</a>
+    <a href="?scene=effects">effects</a>
+    <a href="?scene=fog">fog</a>
+    <a href="?scene=models">models</a>
+  </nav>
+  <script type="module" src="/src/gfx/preview.js"></script>
+</body>
+</html>

@@ -1,87 +1,61 @@
-// ─── IRON COMMAND — Simulation Constants ────────────────────────────────────
-// Pure data. No imports. No side-effects.
+// IRON COMMAND — sim constants, RNG, damage table, geometry helpers.
+// Pure: zero imports from three/DOM. Runs under plain node.
 
-// Board
-export const BOARD_WIDTH   = 14;   // x: -7 .. 7
-export const BOARD_LENGTH  = 22;   // z: -11 .. 11
-export const BOARD_HALF_X  = 7;
-export const BOARD_HALF_Z  = 11;
+export const TICK = 1 / 30;
+export const POP_CAP = 80;
 
-// Sides
 export const PLAYER = 'player';
-export const ENEMY  = 'enemy';
+export const ENEMY = 'enemy';
+export const NEUTRAL = 'neutral';
 
-// Deploy zones: |z| between 5 and 9, clamped to side
-// player: z in [5, 9], enemy: z in [-9, -5]
-export const DEPLOY_Z_MIN = 5;
-export const DEPLOY_Z_MAX = 9;
+// ─── Deterministic RNG (mulberry32) ─────────────────────────────────────────
+export function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
-// Bases
-export const BASE_HP           = 1000;
-export const BASE_TURRET_RANGE = 4;
-export const BASE_TURRET_DPS   = 30;
-
-// Player base is at z=+10, enemy at z=-10
-export const BASE_Z = { player: 10, enemy: -10 };
-
-// Tiberium fields
-export const TIBERIUM_FIELDS = [
-  { x:  5, z:  5 },  // player half
-  { x: -5, z: -5 },  // enemy half
-];
-export const TIBERIUM_HARVEST_RADIUS  = 1.5;
-export const TIBERIUM_HARVEST_INCOME  = 14;   // per-sec while parked
-
-// Economy
-export const STARTING_CREDITS    = 300;
-export const PASSIVE_INCOME_RATE = 12;   // per-sec
-
-// Missile pads
-export const PAD_POSITIONS = [
-  { x: -4.5, z: 0 },
-  { x:  0,   z: 0 },
-  { x:  4.5, z: 0 },
-];
-export const PAD_CAPTURE_RADIUS   = 1.5;  // tiles, ground units only
-export const PAD_CAPTURE_TIME     = 3;    // seconds continuous occupancy
-export const NUKE_CHARGE_2_PADS   = 2.5;   // %/sec holding ≥2 pads
-export const NUKE_CHARGE_3_PADS   = 4.5;  // %/sec holding 3 pads
-export const NUKE_DAMAGE          = 300;
-export const NUKE_FLIGHT_TIME     = 3.0; // seconds in air before impact
-
-// Combat
-export const SIGHT_RANGE        = 6;
-export const SEPARATION_RADIUS  = 0.45;
-export const STEALTH_DETECT_RADIUS = 2; // tiles; stealth broken while attacking too
-export const HOLD_CHASE_LIMIT   = 3;    // tiles beyond move-order position
-
-// Projectile speeds (tiles/sec)
-export const PROJ_SPEED = {
-  bullet:  0,    // instant
-  cannon:  12,
-  missile: 9,
-  flame:   7,
-};
-export const PROJ_SPLASH_RADIUS = 0.6; // for dead-target redirect
-
-// Damage multiplier table: [attackerDmgType][targetArmorClass]
+// ─── Damage type × armor class multiplier (% damage received) ───────────────
 export const DMG_TABLE = {
-  bullet:  { infantry: 1.50, vehicle: 0.50, air: 0.75, building: 0.50 },
-  cannon:  { infantry: 0.50, vehicle: 1.50, air: 0.00, building: 1.25 },
-  missile: { infantry: 0.75, vehicle: 1.25, air: 1.50, building: 1.00 },
-  flame:   { infantry: 1.75, vehicle: 0.75, air: 0.00, building: 1.50 },
+  smallArms: { infantry: 100, lightVehicle: 50, tank: 25, aircraft: 60, structure: 25, baseDefense: 25 },
+  gatling:   { infantry: 125, lightVehicle: 60, tank: 20, aircraft: 125, structure: 20, baseDefense: 25 },
+  cannon:    { infantry: 50, lightVehicle: 100, tank: 100, aircraft: 0, structure: 90, baseDefense: 90 },
+  missile:   { infantry: 30, lightVehicle: 100, tank: 110, aircraft: 120, structure: 70, baseDefense: 70 },
+  flame:     { infantry: 150, lightVehicle: 90, tank: 50, aircraft: 0, structure: 80, baseDefense: 60 },
+  toxin:     { infantry: 175, lightVehicle: 50, tank: 25, aircraft: 0, structure: 25, baseDefense: 25 },
+  sniper:    { infantry: 250, lightVehicle: 10, tank: 0, aircraft: 0, structure: 5, baseDefense: 10 },
+  explosion: { infantry: 100, lightVehicle: 110, tank: 100, aircraft: 60, structure: 110, baseDefense: 100 },
+  bomb:      { infantry: 120, lightVehicle: 120, tank: 120, aircraft: 0, structure: 250, baseDefense: 200 },
+  beam:      { infantry: 150, lightVehicle: 120, tank: 110, aircraft: 0, structure: 220, baseDefense: 220 },
 };
 
-// Attack cadence: damage dealt per shot / dps = cadence (s)
-// We target ~1 shot every 0.5–1 s. Use cadence = clamp(dps/dps, 0.5, 1.0).
-// Actual cadence = 0.75s baseline but clamped per unit.
-export const SHOT_CADENCE_MIN = 0.5;
-export const SHOT_CADENCE_MAX = 1.0;
-export const SHOT_CADENCE_BASE = 0.75;
+export function dmgMultiplier(dmgType, armorClass) {
+  const row = DMG_TABLE[dmgType];
+  if (!row) return 1;
+  const v = row[armorClass];
+  return (v == null ? 100 : v) / 100;
+}
 
-// AI
-export const AI_THINK_INTERVAL = { easy: 4, hard: 2, brutal: 1 };
-export const AI_INCOME_MULT    = { easy: 0.75, hard: 1.0, brutal: 1.25 };
+// Instant-hit weapons vs travel-time projectiles.
+export const INSTANT_WEAPONS = new Set(['smallArms', 'gatling', 'sniper', 'flame', 'toxin']);
+export const PROJECTILE_WEAPONS = new Set(['cannon', 'missile', 'explosion', 'bomb']);
 
-// Power cooldowns (sec) — stored in GENERALS but also re-exported for convenience
-export const POWER_CD = { steel: 90, phantom: 75, hammer: 80 };
+// Projectile speeds (units/sec) for flight-time calc.
+export const PROJ_SPEED = { cannon: 40, missile: 30, explosion: 22, bomb: 28 };
+
+// Splash radii by weapon (units). Artillery weapons override per-unit.
+export const SPLASH_RADIUS = { cannon: 1.5, explosion: 4, bomb: 4 };
+
+// ─── Geometry helpers ───────────────────────────────────────────────────────
+export function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+export function dist2(ax, az, bx, bz) { const dx = ax - bx, dz = az - bz; return dx * dx + dz * dz; }
+export function dist(ax, az, bx, bz) { return Math.sqrt(dist2(ax, az, bx, bz)); }
+export function lerp(a, b, t) { return a + (b - a) * t; }
+
+// EVA throttle for underAttack family (sec).
+export const UNDER_ATTACK_THROTTLE = 15;
