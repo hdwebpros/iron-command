@@ -43,7 +43,7 @@ const VIDEOS = {
   },
   syndicate: {
     general: 'Ali "Viper" Abazz',
-    prompt: `Cinematic live-action character introduction, 16:9. A lean, cunning Middle Eastern warlord in his mid-40s — trimmed black beard, sharp watchful eyes, checkered shemagh draped over dusty olive-green tactical fatigues, a gold ring catching the light. He sits half in shadow in a desert hideout lit by a single swinging lantern, surrounded by worn maps and salvaged weapon crates. He leans slowly forward into the light with a sly, knowing smile and says quietly, with silky menace: "We are the one true power." Warm flickering lantern light, dust motes in the air, green-tinted color grade, slow creeping push-in. ${NO_MUSIC}`,
+    prompt: `Cinematic live-action character introduction, 16:9. A lean, cunning Middle Eastern warlord in his mid-40s — trimmed black beard, sharp watchful eyes, checkered shemagh draped over dusty olive-green tactical fatigues, a gold ring catching the light. He sits half in shadow in a desert hideout lit by a single swinging lantern, surrounded by worn maps and salvaged weapon crates. He leans slowly forward into the light with a sly, knowing smile and says quietly, with silky menace: "How are you gentlemen. All your base are belong to us." Warm flickering lantern light, dust motes in the air, green-tinted color grade, slow creeping push-in. ${NO_MUSIC}`,
   },
 };
 

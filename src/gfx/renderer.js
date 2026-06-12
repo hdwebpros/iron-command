@@ -862,6 +862,7 @@ export class GfxEngine {
       x, z, y: air ? 0.3 : 0,
       yaw: simToYaw(ent.angle),
       prevYaw: 0, bank: 0,
+      lastMoveT: -1e9, moveYaw: simToYaw(ent.angle),
       simPx: x, simPz: z,
       aimId: null, aimTtl: 0,
       smokeAcc: Math.random(), fireAcc: Math.random() * 0.4, sparkAcc: 0, dustAcc: 0,
@@ -1005,17 +1006,26 @@ export class GfxEngine {
       if (!g.visible) g.visible = true;
 
       // ── position interpolation ──
+      const px = rec.x, pz = rec.z;
       const ux = ent.x ?? rec.x, uz = ent.z ?? rec.z;
       if (Math.abs(ux - rec.x) > 10 || Math.abs(uz - rec.z) > 10) { rec.x = ux; rec.z = uz; } // teleport (tunnels)
       else { rec.x += (ux - rec.x) * k; rec.z += (uz - rec.z) * k; }
+      // sim positions only change on tick frames (1/30s), not every render
+      // frame — remember the last real step so `moving` doesn't flicker at
+      // tick rate (which restarts walk clips into a blur)
       const mdx = ux - rec.simPx, mdz = uz - rec.simPz;
       rec.simPx = ux; rec.simPz = uz;
-      const moving = Math.hypot(mdx, mdz) > dt * 0.25;
+      if (mdx * mdx + mdz * mdz > 1e-6) {
+        rec.lastMoveT = time;
+        rec.moveYaw = Math.atan2(mdx, mdz);
+      }
+      const moving = time - rec.lastMoveT < 0.2;
+      const groundSpeed = Math.hypot(rec.x - px, rec.z - pz) / dt;   // smooth, interpolated
 
       // ── facing ──
       if (rec.kind === 'unit' || rec.kind === 'husk') {
         let desired = rec.yaw;
-        if (moving) desired = Math.atan2(mdx, mdz);
+        if (moving) desired = rec.moveYaw;
         else if (ent.angle != null) desired = simToYaw(ent.angle);
         rec.prevYaw = rec.yaw;
         rec.yaw += wrapAngle(desired - rec.yaw) * yawK;
@@ -1232,7 +1242,7 @@ export class GfxEngine {
         fx.drawBar(rec.x, rec.y + (u.height || 1.5) + 0.78, rec.z, ent.queue[0].progress || 0, w, 0x28d3e8, 0.6);
       }
 
-      animateEntityMesh(g, dt, time, moving);
+      animateEntityMesh(g, dt, time, moving, groundSpeed);
     }
     fx.endBars();
   }

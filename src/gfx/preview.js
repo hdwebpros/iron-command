@@ -13,6 +13,7 @@ const SCENE = PARAMS.get('scene') || 'coalition';
 const LOOK = (PARAMS.get('look') || '').split(',').map(Number);   // ?look=x,z
 const ZOOM = Number(PARAMS.get('zoom') || 0);                     // ?zoom=dist
 const WARP = Number(PARAMS.get('warp') || 0);                     // ?warp=secs — fast-forward scene
+const PROBE = Number(PARAMS.get('probe') || 0);                   // ?probe=secs — skinned-render pass/fail probe at t
 
 /* ── mock game ──────────────────────────────────────────────────────────── */
 let NEXT_ID = 1;
@@ -51,6 +52,7 @@ const removeEnt = (id) => {
 
 /* ── labels (preview-only text sprites) ─────────────────────────────────── */
 function makeLabel(text, x, z, y = 2.2, big = false) {
+  if (PROBE) return null;   // [DEBUG-skin1] labels are depthTest:false → pollute pixel probe
   const cv = document.createElement('canvas');
   cv.width = 256; cv.height = 64;
   const c = cv.getContext('2d');
@@ -648,6 +650,38 @@ async function buildDumpScene() {
   tick = () => {};
 }
 
+/* ── [DEBUG-skin1] minimal record-path scene: one unit, URL-placed ──────── */
+function buildMinScene() {
+  const x = Number(PARAMS.get('x') || -18.7), z = Number(PARAMS.get('z') || 16);
+  const mk = () => E({ key: PARAMS.get('key') || 'trooper', faction: PARAMS.get('f') || 'coalition', x, z, angle: 0 });
+  const dly = Number(PARAMS.get('delay') || 0);   // spawn after N s (e.g. after models ready)
+  if (dly > 0) delay(dly, mk); else mk();
+  gfx.jumpTo(x, z);
+  gfx._distT = gfx._dist = ZOOM || 10;
+  tick = () => {};
+  // &walk=1: patrol at trooper speed with sim-tick (1/30s) quantized position
+  // updates — reproduces the game's movement cadence; tracks anim-state churn
+  if (PARAMS.get('walk')) {
+    let simAcc = 0, dir = 1;
+    tick = (t, dt) => {
+      const ent = game.state.entities[0];
+      if (!ent) return;
+      simAcc += dt;
+      while (simAcc >= 1 / 30) {
+        simAcc -= 1 / 30;
+        ent.x += dir * 2.2 / 30;
+        if (ent.x > x + 5) dir = -1; else if (ent.x < x - 5) dir = 1;
+      }
+      const a = gfx._recs?.get(ent.id)?.group.userData.anim;
+      if (a) {
+        const s = (window.__AN = window.__AN || { last: null, sw: 0, t0: t });
+        if (a.cur !== s.last) { if (s.last !== null) s.sw++; s.last = a.cur; }
+        s.info = `anim:cur=${a.cur ? a.cur.getClip().name : 'none'},ts=${a.cur ? a.cur.timeScale.toFixed(2) : '-'},switches=${s.sw}/${(t - s.t0).toFixed(1)}s`;
+      }
+    };
+  }
+}
+
 /* ── scene select ───────────────────────────────────────────────────────── */
 switch (SCENE) {
   case 'dominion': buildFactionScene('dominion'); break;
@@ -660,6 +694,7 @@ switch (SCENE) {
   case 'models': tick = () => {}; buildModelsScene(); break;
   case 'inst': tick = () => {}; buildInstScene(); break;
   case 'dump': tick = () => {}; buildDumpScene(); break;
+  case 'min': buildMinScene(); break;
   default: buildFactionScene('coalition');
 }
 
@@ -667,12 +702,228 @@ switch (SCENE) {
 if (LOOK.length === 2 && Number.isFinite(LOOK[0]) && Number.isFinite(LOOK[1])) gfx.jumpTo(LOOK[0], LOOK[1]);
 if (ZOOM > 0) { gfx._distT = gfx._dist = ZOOM; }
 
+// [DEBUG-art1] ?matcolor=Grey:ff00ff,Wood:00ff00 — recolor scene materials by
+// name after load (body-region identification for the outfit pass)
+const MATCOLOR = PARAMS.get('matcolor');
+if (MATCOLOR) delay(1.2, () => {
+  const map = new Map(MATCOLOR.split(',').map((s) => s.split(':')));
+  gfx.scene.traverse((o) => {
+    if (!o.isMesh) return;
+    for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+      const hex = map.get(m.name);
+      if (hex) m.color.set('#' + hex);
+    }
+  });
+});
+
 /* ── minimap snapshot in the corner ─────────────────────────────────────── */
 try {
   const mm = gfx.minimapBase();
   mm.style.cssText = 'position:fixed;right:10px;bottom:10px;width:160px;height:160px;border:2px solid #fff5;z-index:5;';
   document.body.appendChild(mm);
 } catch (e) { ERRS.push('minimap: ' + e.message); }
+
+/* ── [DEBUG-skin1] skinned-render probe (?probe=secs) ───────────────────────
+   For every SkinnedMesh in the scene, computes the CPU-side skinned vertex
+   bounds (applyBoneTransform — same math the shader runs from boneTexture),
+   the staleness of skeleton.boneMatrices vs a fresh recompute, and a GPU
+   pixel readback at the first entity's torso vs bare ground. Result goes in
+   the title as PROBE_... so headless runs are pass/fail-greppable. */
+let probeNextT = 0;
+function samplePx(x, y, z) {
+  const v = new THREE.Vector3(x, y, z).project(gfx.camera);
+  const gl = gfx.renderer.getContext();
+  const W = gl.drawingBufferWidth, H = gl.drawingBufferHeight;
+  const sx = Math.round((v.x * 0.5 + 0.5) * W), sy = Math.round((v.y * 0.5 + 0.5) * H);
+  const n = 9, buf = new Uint8Array(4 * n * n);
+  gl.readPixels(sx - (n >> 1), sy - (n >> 1), n, n, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+  let r = 0, g = 0, b = 0;
+  for (let i = 0; i < n * n; i++) { r += buf[i * 4]; g += buf[i * 4 + 1]; b += buf[i * 4 + 2]; }
+  const m = n * n;
+  return [Math.round(r / m), Math.round(g / m), Math.round(b / m)];
+}
+function runProbe() {
+  const skins = [];
+  const v = new THREE.Vector3();
+  const fresh = new THREE.Matrix4();
+  gfx.scene.updateMatrixWorld(true);
+  gfx.scene.traverse((o) => {
+    if (!o.isSkinnedMesh) return;
+    // draw-time log: which program (skinning or not) each actual draw used
+    if (!o.userData.drawHook) {
+      o.userData.drawHook = true;
+      o.onAfterRender = (renderer, scene, camera, geometry, material) => {
+        const log = (window.__DRAWS = window.__DRAWS || []);
+        if (log.length > 60) return;
+        const mp = renderer.properties.get(material);
+        const prog = mp && mp.currentProgram;
+        const hasBoneTex = !!(prog && prog.getUniforms && prog.getUniforms().map.boneTexture);
+        let extra = '';
+        // deep-verify the actual GPU uniform/sampler state of this draw
+        if (hasBoneTex && window.__DEEP && o.name === 'Cube004_4') {
+          try {
+            const gl = renderer.getContext();
+            const pg = prog.program;
+            const dif = (uName, m16) => {
+              const loc = gl.getUniformLocation(pg, uName);
+              if (!loc) return `${uName}:noLoc`;
+              const v = gl.getUniform(pg, loc);
+              let d = 0;
+              for (let i = 0; i < 16; i++) d = Math.max(d, Math.abs(v[i] - m16[i]));
+              return `${uName}:${d.toFixed(4)}`;
+            };
+            const unitLoc = gl.getUniformLocation(pg, 'boneTexture');
+            const unit = unitLoc ? gl.getUniform(pg, unitLoc) : -1;
+            let texMatch = '?';
+            if (unit >= 0) {
+              const prevActive = gl.getParameter(gl.ACTIVE_TEXTURE);
+              gl.activeTexture(gl.TEXTURE0 + unit);
+              const bound = gl.getParameter(gl.TEXTURE_BINDING_2D);
+              gl.activeTexture(prevActive);
+              const mine = renderer.properties.get(o.skeleton.boneTexture).__webglTexture;
+              texMatch = bound === mine ? 'OWN' : 'FOREIGN';
+            }
+            const mvm = new THREE.Matrix4().multiplyMatrices(camera.matrixWorldInverse, o.matrixWorld);
+            extra = `{${dif('bindMatrix', o.bindMatrix.elements)} ${dif('bindMatrixInverse', o.bindMatrixInverse.elements)} ${dif('modelMatrix', o.matrixWorld.elements)} ${dif('modelViewMatrix', mvm.elements)} ${dif('projectionMatrix', camera.projectionMatrix.elements)} unit${unit}=${texMatch}}`;
+          } catch (e) { extra = '{deepErr:' + (e.message || e) + '}'; }
+        }
+        log.push(`${o.name}:${hasBoneTex ? 'SKIN' : 'NOSKIN'}:mp${mp ? mp.skinning : '?'}${extra}`);
+      };
+    }
+    const pos = o.geometry.attributes.position;
+    let minY = Infinity, maxY = -Infinity, nan = false;
+    let rawMinY = Infinity, rawMaxY = -Infinity;
+    for (let i = 0; i < pos.count; i += 5) {
+      v.fromBufferAttribute(pos, i);
+      v.applyMatrix4(o.matrixWorld);
+      if (v.y < rawMinY) rawMinY = v.y;
+      if (v.y > rawMaxY) rawMaxY = v.y;
+      v.fromBufferAttribute(pos, i);
+      o.applyBoneTransform(i, v);
+      v.applyMatrix4(o.matrixWorld);
+      if (!Number.isFinite(v.y)) { nan = true; break; }
+      if (v.y < minY) minY = v.y;
+      if (v.y > maxY) maxY = v.y;
+    }
+    // staleness: skeleton.boneMatrices vs recompute from current bone world matrices
+    let stale = 0;
+    const sk = o.skeleton;
+    for (let i = 0; i < sk.bones.length; i++) {
+      fresh.multiplyMatrices(sk.bones[i].matrixWorld, sk.boneInverses[i]);
+      for (let j = 0; j < 16; j++) {
+        const d = Math.abs(fresh.elements[j] - sk.boneMatrices[i * 16 + j]);
+        if (d > stale) stale = d;
+      }
+    }
+    // GPU truth: read the boneTexture back and diff against boneMatrices;
+    // also report texture upload version + the material's cached skinning flag
+    let gpu = '?';
+    try {
+      const tex = sk.boneTexture;
+      const props = tex && gfx.renderer.properties.get(tex);
+      if (!tex) gpu = 'noTex';
+      else if (!props || !props.__webglTexture) gpu = `v${tex.version}/noGL`;
+      else {
+        const gl = gfx.renderer.getContext();
+        const size = tex.image.width;
+        const fbo = gl.createFramebuffer();
+        gfx.renderer.state.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, props.__webglTexture, 0);
+        if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) gpu = `v${tex.version}/up${props.__version}/fboBad`;
+        else {
+          const buf = new Float32Array(size * size * 4);
+          gl.readPixels(0, 0, size, size, gl.RGBA, gl.FLOAT, buf);
+          let d = 0;
+          for (let i = 0; i < sk.boneMatrices.length; i++) {
+            const dd = Math.abs(buf[i] - sk.boneMatrices[i]);
+            if (dd > d) d = dd;
+          }
+          gpu = `v${tex.version}/up${props.__version}/gd${d.toFixed(3)}`;
+        }
+        gfx.renderer.state.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.deleteFramebuffer(fbo);
+      }
+      const mp = gfx.renderer.properties.get(Array.isArray(o.material) ? o.material[0] : o.material);
+      gpu += `/skin:${mp ? mp.skinning : 'noMP'}`;
+      // identity: skeleton object id, texture id, does the texture wrap THIS
+      // skeleton's boneMatrices array, is update() still the prototype's
+      const ids = (window.__IDS = window.__IDS || { m: new WeakMap(), n: 0 });
+      const idOf = (x) => { if (!ids.m.has(x)) ids.m.set(x, ++ids.n); return ids.m.get(x); };
+      gpu += `/sk#${idOf(sk)}tx#${tex ? idOf(tex) : '-'}wrap:${tex ? (tex.image.data === sk.boneMatrices ? 'Y' : 'N') : '-'}` +
+        `proto:${sk.update === Object.getPrototypeOf(sk).update ? 'Y' : 'N'}bm13:${sk.boneMatrices[13].toFixed(1)}`;
+    } catch (e) { gpu = 'err:' + (e.message || e); }
+    let root = o; while (root.parent && !root.userData.model) root = root.parent;
+    skins.push(`${root.userData.key || root.name || '?'}/${o.name}:${nan ? 'NaN' : minY.toFixed(2) + '..' + maxY.toFixed(2)}|raw${rawMinY.toFixed(2)}..${rawMaxY.toFixed(2)}|st${stale.toFixed(3)}|${gpu}`);
+  });
+  const draws = window.__DRAWS ? window.__DRAWS.splice(0).join(',') : '';
+  skins.push(`DRAWS[${draws}]`);
+  if (window.__AN) skins.push(window.__AN.info);
+  window.__DEEP = true;   // deep-verify draws from the next frame on
+  // ?poke=1: causal test — shove +2y into every boneTexture (GPU only, CPU
+  // skeleton.update disabled) — if the rendered body doesn't jump, the draw
+  // isn't sampling the texture we think it is
+  // ?fixtex=t: dispose boneTextures only — forces a brand-new GL texture with
+  // current content; heals => per-frame upload path is what's broken
+  if (PARAMS.get('fixtex') && elapsed > Number(PARAMS.get('fixtex')) && !window.__FIXTEX) {
+    window.__FIXTEX = true;
+    gfx.scene.traverse((o) => {
+      if (o.isSkinnedMesh && o.skeleton.boneTexture) {
+        o.skeleton.boneTexture.dispose();
+        o.skeleton.boneTexture = null;   // renderer recreates via computeBoneTexture
+      }
+    });
+    skins.push('FIXTEX');
+  }
+  // ?paint=t: replace skinned-mesh materials with flat red — identifies which
+  // pixels on screen come from these exact draws
+  if (PARAMS.get('paint') && elapsed > Number(PARAMS.get('paint')) && !window.__PAINTED) {
+    window.__PAINTED = true;
+    gfx.scene.traverse((o) => {
+      if (o.isSkinnedMesh) o.material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+    });
+    skins.push('PAINTED');
+  }
+  // ?fixgeo=t: dispose skinned geometries (forces GL buffer + VAO rebuild) —
+  // if the body snaps upright, the bug is stale vertex-attribute/VAO state
+  if (PARAMS.get('fixgeo') && elapsed > Number(PARAMS.get('fixgeo')) && !window.__FIXED) {
+    window.__FIXED = true;
+    gfx.scene.traverse((o) => { if (o.isSkinnedMesh) o.geometry.dispose(); });
+    skins.push('FIXGEO');
+  }
+  if (PARAMS.get('poke') && elapsed > Number(PARAMS.get('poke')) && !window.__POKED) {
+    window.__POKED = true;
+    gfx.scene.traverse((o) => {
+      if (!o.isSkinnedMesh) return;
+      const sk = o.skeleton;
+      sk.update = () => {};
+      // raw model units (~190/char height) — must be large to be visible
+      for (let i = 0; i < sk.bones.length; i++) sk.boneMatrices[i * 16 + 13] += 100.0;
+      if (sk.boneTexture) sk.boneTexture.needsUpdate = true;
+    });
+    skins.push('POKED');
+  }
+  let px = 'none';
+  const e0 = game.state.entities[0];
+  if (e0) {
+    const torso = samplePx(e0.x, 0.75, e0.z);
+    const ground = samplePx(e0.x + 4, 0.05, e0.z);
+    const d = Math.hypot(torso[0] - ground[0], torso[1] - ground[1], torso[2] - ground[2]);
+    px = `t(${torso})g(${ground})d${d.toFixed(0)}`;
+  }
+  window.__PROBE = `t=${elapsed.toFixed(2)} PROBE ${skins.join(' ')} px=${px}`;
+  // headless runs: ship the result to a local report server (?report=port)
+  const rp = PARAMS.get('report');
+  if (rp) fetch(`http://localhost:${rp}/report?run=${PARAMS.get('run') || 0}&msg=${encodeURIComponent(window.__PROBE + (ERRS.length ? ' ERRS:' + ERRS[0] : ''))}`, { mode: 'no-cors' }).catch(() => {});
+  // thumbnail of the live canvas (same task as render, so the buffer is valid)
+  if (rp && PARAMS.get('shots')) {
+    try {
+      const cv2 = document.createElement('canvas');
+      cv2.width = 400; cv2.height = 225;
+      cv2.getContext('2d').drawImage(gfx.canvas, 0, 0, 400, 225);
+      fetch(`http://localhost:${rp}/shot?run=${PARAMS.get('run') || 0}&t=${elapsed.toFixed(1)}`, { method: 'POST', mode: 'no-cors', body: cv2.toDataURL('image/png') }).catch(() => {});
+    } catch (e) { /* shot is best-effort */ }
+  }
+}
 
 /* ── main loop ──────────────────────────────────────────────────────────── */
 let last = null;
@@ -690,10 +941,22 @@ function step(dt) {
     gfx.update(dt, game.state);
     updMs = updMs * 0.95 + (performance.now() - t0) * 0.05;   // rolling avg
   } catch (e) { ERRS.push(String(e)); }
+  // [DEBUG-skin1] must run in the same task as composer.render (readPixels)
+  // time series: probe every frame until 1s, then every ~0.5s until PROBE secs
+  if (PROBE && !gfx.skipRender && elapsed <= PROBE
+      && (elapsed < 2 || elapsed >= probeNextT)) {
+    probeNextT = elapsed + 0.5;
+    try { runProbe(); } catch (e) { ERRS.push('probe: ' + e); }
+  } else if (PROBE && probeNextT !== -1 && elapsed > PROBE) {
+    probeNextT = -1;
+    const rp = PARAMS.get('report');
+    if (rp) fetch(`http://localhost:${rp}/report?run=${PARAMS.get('run') || 0}&msg=DONE`, { mode: 'no-cors' }).catch(() => {});
+  }
 }
 let updMs = 0;
+const FIXDT = Number(PARAMS.get('fixdt') || 0);   // [DEBUG-skin1] force per-frame dt
 function frame(now) {
-  const dt = last == null ? 0.016 : Math.max(0.001, Math.min(0.1, (now - last) / 1000));
+  const dt = FIXDT || (last == null ? 0.016 : Math.max(0.001, Math.min(0.1, (now - last) / 1000)));
   last = now;
   // fast-forward without compositing (screenshot harness)
   if (elapsed < WARP) {
@@ -710,5 +973,7 @@ requestAnimationFrame(frame);
 setInterval(() => {
   document.title = ERRS.length
     ? ('GFX_ERR ' + ERRS.length + ': ' + ERRS[0]).slice(0, 150)
-    : 'GFX_OK ' + SCENE + ' t=' + elapsed.toFixed(1) + ' upd=' + updMs.toFixed(1) + 'ms';
+    : window.__PROBE
+      ? window.__PROBE.slice(0, 400)
+      : 'GFX_OK ' + SCENE + ' t=' + elapsed.toFixed(1) + ' upd=' + updMs.toFixed(1) + 'ms';
 }, 400);

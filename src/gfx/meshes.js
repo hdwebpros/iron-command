@@ -1313,7 +1313,7 @@ export function overrideMaterials(g, mat) {
 }
 
 /** Per-frame sub-part animation. */
-export function animateEntityMesh(g, dt, time, moving) {
+export function animateEntityMesh(g, dt, time, moving, groundSpeed = 0) {
   const u = g?.userData;
   if (!u) return;
   if (u.anim) {
@@ -1327,6 +1327,11 @@ export function animateEntityMesh(g, dt, time, moving) {
       if (a.cur) a.cur.fadeOut(0.18);
       if (want) want.reset().fadeIn(0.18).play();
       a.cur = want;
+    }
+    // pace the run cycle to actual ground speed (clip authored ≈ infantry
+    // full speed) so feet don't slide or blur
+    if (a.cur && a.cur === a.actions.move) {
+      a.cur.timeScale = Math.max(0.5, Math.min(1.5, groundSpeed / 2.2));
     }
     a.mixer.update(dt);
   }

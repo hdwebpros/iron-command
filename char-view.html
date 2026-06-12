@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>GFX_BOOT</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #15120d; overflow: hidden; }
+    #cv { width: 100vw; height: 100vh; display: block; }
+  </style>
+  <script>
+    window.__ERRS = [];
+    window.addEventListener('error', (e) => window.__ERRS.push(String((e.error && e.error.stack) || e.message || 'err')));
+    window.addEventListener('unhandledrejection', (e) => window.__ERRS.push(String((e.reason && e.reason.stack) || e.reason || 'rej')));
+    setInterval(() => { document.getElementById('errs').textContent = window.__ERRS.join('\n'); }, 250);
+  </script>
+</head>
+<body>
+  <canvas id="cv"></canvas>
+  <pre id="errs" style="position:fixed;left:4px;bottom:4px;color:#f66;font-size:10px;margin:0"></pre>
+  <script type="module" src="/src/gfx/charview.js"></script>
+</body>
+</html>
