@@ -102,13 +102,18 @@ function buildFactionScene(faction) {
   const { units, structures } = KEYS[faction];
   makeLabel(faction.toUpperCase(), 0, 26, 5, true);
 
+  const ROWS = PARAMS.get('rows') || 'all';   // debug: usv combo — u=units, s=structures+states, v=vignette
+  const has = (c) => ROWS === 'all' || ROWS.includes(c);
+
   // units row
   const us = 3.4;
   const ux0 = -((units.length - 1) / 2) * us;
-  units.forEach((key, i) => {
+  const NU = Number(PARAMS.get('n') || units.length);   // debug: only first N units
+  if (has('u')) units.slice(0, NU).forEach((key, i) => {
     E({ key, faction, x: ux0 + i * us, z: 16, angle: 0 });   // angle 0 → correct units face screen-right (side profile)
     makeLabel(key, ux0 + i * us, 16 + 1.6, key === 'pelican' || key === 'specter' || key === 'falcon' || key === 'meteor' || key === 'vulture' ? 7.6 : 2.4);
   });
+  if (has('s')) {
 
   // structures row
   const ss = 7.5;
@@ -137,8 +142,11 @@ function buildFactionScene(faction) {
     E({ faction, x: vx0 + i * 8, z: -14, ...props });
     makeLabel(name, vx0 + i * 8, -14 + 2.6, 4.6);
   });
+  }
+  if (!game.state.player.super) game.state.player.super = { id: null, charge: 168, total: 240, ready: false };
 
   // base vignette
+  if (has('v')) {
   const bx = 0, bz = -32;
   makeLabel('base vignette', bx, bz + 9, 5);
   E({ key: 'commandCenter', faction, kind: 'structure', x: bx, z: bz, sel: 3 });
@@ -150,6 +158,7 @@ function buildFactionScene(faction) {
   E({ key: dKey, faction, kind: 'structure', x: bx - 3, z: bz + 6.5, sel: 1.4 });
   E({ key: dKey, faction, kind: 'structure', x: bx + 3.5, z: bz + 6.8, sel: 1.4 });
   for (let i = 0; i < 5; i++) E({ key: units[Math.min(7, 1 + i)], faction, x: bx - 5 + i * 2.4, z: bz + 10.5 });
+  }
 
   gfx.jumpTo(0, -2);
   gfx._distT = gfx._dist = 52;
@@ -553,6 +562,33 @@ async function buildModelsScene() {
 
 }
 
+/* ── debug: bare createModelMesh instances, no renderer records ─────────── */
+async function buildInstScene() {
+  const M = await import('./models.js');
+  if (!PARAMS.get('early')) await M.preloadModels();
+  const list = [];
+  for (const f of ['coalition', 'dominion', 'syndicate'])
+    for (const k of Object.keys({ trooper: 1, javelin: 1, marksman: 1, ghost: 1, conscript: 1, hunter: 1, hacker: 1, mantis: 1, worker: 1, militant: 1, stinger: 1, fanatic: 1, cobra: 1 }))
+      if (PARAMS.get('early') ? KEYS[f].units.includes(k) : M.hasModel(f, k)) list.push([f, k]);
+  const { createEntityMesh } = await import('./meshes.js');
+  list.forEach(([f, k], i) => {
+    const x = -18 + (i % 8) * 5, z = 12 - Math.floor(i / 8) * 6;
+    if (PARAMS.get('mock')) {
+      E({ key: k, faction: f, x, z, angle: 0 });
+    } else {
+      const g = PARAMS.get('ent') ? createEntityMesh({ key: k, faction: f, side: 'player', kind: 'unit' }) : M.createModelMesh(f, k);
+      g.position.set(x, 0, z);
+      gfx.scene.add(g);
+      if (g.userData.anim) mixers.push(g.userData.anim.mixer);
+    }
+    makeLabel(`${f.slice(0, 3)}:${k}`, x, z + 1.8, 2.2);
+  });
+  if (LOOK.length === 2 && !Number.isNaN(LOOK[0])) gfx.jumpTo(LOOK[0], LOOK[1]);
+  else gfx.jumpTo(0, 4);
+  gfx._distT = gfx._dist = ZOOM || 30;
+  tick = (t, dt) => { for (const m of mixers) m.update(dt); };
+}
+
 /* ── debug: dump FBX hierarchy + animation tracks as <pre> (dev only) ───── */
 async function buildDumpScene() {
   const { FBXLoader } = await import('three/addons/loaders/FBXLoader.js');
@@ -622,6 +658,7 @@ switch (SCENE) {
   case 'air': buildAirScene(); break;
   case 'perf': buildPerfScene(); break;
   case 'models': tick = () => {}; buildModelsScene(); break;
+  case 'inst': tick = () => {}; buildInstScene(); break;
   case 'dump': tick = () => {}; buildDumpScene(); break;
   default: buildFactionScene('coalition');
 }

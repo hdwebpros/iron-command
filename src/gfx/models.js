@@ -34,9 +34,10 @@ const TANK = (url, size) => ({
 // ToonShooter chars ship with EVERY weapon mesh attached (plus a stray
 // Icosphere) — `weapon` picks the one to keep; the rest are stripped before
 // normalization so the bbox (and thus the scale) comes from the body alone.
-const CHAR = (file, weapon) => ({
+// Chars are authored facing +Z already, so yaw stays 0.
+const CHAR = (file, weapon, size = 1.25) => ({
   url: `/models/toonshooter/chars/Character_${file}.gltf`,
-  fit: 'h', size: 1.25, yaw: Math.PI, tintAmt: 0.42, anims: CHAR_ANIMS, weapon,
+  fit: 'h', size, yaw: 0, tintAmt: 0.42, anims: CHAR_ANIMS, weapon,
 });
 // Static GLB vehicles from /models/units (poly.pizza picks, see CREDITS.md).
 const VEH = (file, size, yaw = 0) => ({ url: `/models/units/${file}.glb`, fit: 'l', size, yaw, tintAmt: 0.3 });
@@ -45,9 +46,9 @@ const AIR = (file, size, yaw = 0, hoverY = 4.5) => ({ ...VEH(file, size, yaw), h
 const MODEL_DEFS = {
   coalition: {
     trooper:  CHAR('Soldier', 'AK'),
-    javelin:  CHAR('Enemy', 'RocketLauncher'),
+    javelin:  CHAR('Soldier', 'RocketLauncher'),
     marksman: CHAR('Soldier', 'Sniper'),
-    ghost:    CHAR('Enemy', 'Sniper_2'),
+    ghost:    CHAR('Enemy', 'Sniper_2', 1.4),
     dozer:    VEH('dozer_a', 2.8, Math.PI / 2),
     outrider: VEH('outrider', 3.0, Math.PI),
     paladin:  TANK('/models/tanks/Tank2.fbx', 3.2),
@@ -58,10 +59,10 @@ const MODEL_DEFS = {
     meteor:   AIR('meteor', 4.4, 0, 6),
   },
   dominion: {
-    conscript:  CHAR('Soldier', 'AK'),
+    conscript:  CHAR('Enemy', 'SMG'),
     hunter:     CHAR('Enemy', 'RocketLauncher'),
     hacker:     CHAR('Enemy', 'Pistol'),
-    mantis:     CHAR('Enemy', 'Sniper'),
+    mantis:     CHAR('Enemy', 'Knife_2', 1.4),
     dozer:      VEH('dozer_b', 2.8, Math.PI),
     supplyTruck: VEH('supply_truck', 3.2),
     warmaster:  TANK('/models/tanks/Tank3.fbx', 3.5),
@@ -73,10 +74,10 @@ const MODEL_DEFS = {
   },
   syndicate: {
     worker:    CHAR('Hazmat', 'Shovel'),
-    militant:  CHAR('Soldier', 'AK'),
-    stinger:   CHAR('Enemy', 'RocketLauncher'),
+    militant:  CHAR('Hazmat', 'Shotgun'),
+    stinger:   CHAR('Hazmat', 'GrenadeLauncher'),
     fanatic:   CHAR('Hazmat', 'Knife_1'),
-    cobra:     CHAR('Soldier', 'Sniper_2'),
+    cobra:     CHAR('Hazmat', 'Sniper', 1.4),
     technical: VEH('technical', 2.9),
     scorpion:  TANK('/models/tanks/Tank.fbx', 2.9),
     quad:      VEH('quad', 2.6),
@@ -226,8 +227,10 @@ function buildTankTemplate(faction, key, def, raw) {
 
 function buildCharTemplate(faction, key, def, raw) {
   const src = SkeletonUtils.clone(raw.scene);
+  // GLTFLoader loads multi-primitive weapon nodes as Groups named 'AK' etc.
+  // with anonymous child meshes — match on node name at any level, not isMesh.
   const drop = [];
-  src.traverse((o) => { if (o.isMesh && CHAR_ACCESSORIES.has(o.name) && o.name !== def.weapon) drop.push(o); });
+  src.traverse((o) => { if (CHAR_ACCESSORIES.has(o.name) && o.name !== def.weapon) drop.push(o); });
   for (const o of drop) o.parent.remove(o);
   const g = normalize(src, def);
   tintMaterials(g, new THREE.Color(FACTION_COLORS[faction] ?? 0xd8b04a), def.tintAmt);
@@ -283,6 +286,9 @@ export function createModelMesh(faction, key) {
     u.muzzle = g.getObjectByName('MuzzlePoint') || null;
     return g;
   }
+  // skinned bounds don't track the pose — without this the body can vanish
+  // or render stale depending on camera, while bone-attached props remain
+  g.traverse((o) => { if (o.isSkinnedMesh) o.frustumCulled = false; });
   // characters: per-instance mixer with idle/move/shoot/death actions
   const mixer = new THREE.AnimationMixer(g);
   const actions = {};
