@@ -21,6 +21,55 @@ for (const f of Object.values(FACTIONS)) {
   for (const [k, d] of Object.entries(f.units || {})) if (d.armor === 'infantry') INFANTRY.add(k);
 }
 
+// App-level looping music ("Dust Doctrine"): menu theme + quiet in-game track.
+// One instance for the whole app — survives session teardown, crossfades on switch.
+export function createMusic() {
+  const TRACKS = {
+    menu: { file: 'music_menu.mp3', vol: 0.45 },
+    game: { file: 'music_game.mp3', vol: 0.14 },   // subtle under battle SFX
+  };
+  let el = null, current = null, target = 0, muted = false, fade = 0;
+
+  function ensureEl() {
+    if (el) return el;
+    el = new Audio();
+    el.loop = true;
+    el.volume = 0;
+    // autoplay is gated behind a user gesture — retry on the first one
+    const kick = () => { if (el && el.paused && current) el.play().catch(() => {}); };
+    window.addEventListener('pointerdown', kick);
+    window.addEventListener('keydown', kick);
+    return el;
+  }
+
+  function stepFade() {
+    if (!el) return;
+    const goal = muted ? 0 : target;
+    const d = goal - el.volume;
+    if (Math.abs(d) < 0.012) { el.volume = goal; clearInterval(fade); fade = 0; return; }
+    el.volume += d * 0.15;
+  }
+
+  function play(name) {
+    const t = TRACKS[name];
+    if (!t || current === name) return;
+    current = name;
+    ensureEl();
+    el.src = (import.meta.env?.BASE_URL || './') + 'sfx/' + t.file;
+    target = t.vol;
+    el.volume = muted ? 0 : t.vol * 0.3;           // start low, fade up
+    el.play().catch(() => {});                      // blocked until gesture; kick retries
+    if (!fade) fade = setInterval(stepFade, 80);
+  }
+
+  function setMuted(m) {
+    muted = !!m;
+    if (el && !fade) fade = setInterval(stepFade, 80);
+  }
+
+  return { play, setMuted };
+}
+
 export function createSfx(game, { listenerPos } = {}) {
   let ctx = null, master = null, fxBus = null, voiceBus = null;
   let muted = false, disposed = false;

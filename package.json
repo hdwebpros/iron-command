@@ -12,7 +12,6 @@
     "three": "^0.165.0"
   },
   "devDependencies": {
-    "fbx2gltf": "^0.9.7-p1",
     "vite": "^5.3.0"
   }
 }

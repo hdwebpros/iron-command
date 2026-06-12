@@ -486,14 +486,14 @@ async function buildModelsScene() {
 
   const rows = [
     ['TANKS (Quaternius animated)', 28, [
-      ...['Tank', 'Tank2', 'Tank3', 'Tank4'].map((n, i) => ({ url: `/models/tanks/${n}.fbx`, label: n, fit: 'l', size: 2.8, x: -22 + i * 5 })),
-      { url: '/models/toonshooter/env/Tank.gltf', label: 'ToonShooter Tank', fit: 'l', size: 2.8, x: -2 },
+      ...['Tank', 'Tank2', 'Tank3', 'Tank4'].map((n, i) => ({ url: `/models/tanks/${n}.fbx`, label: n, fit: 'l', size: 3.4, x: -22 + i * 5 })),
+      { url: '/models/toonshooter/env/Tank.gltf', label: 'ToonShooter Tank', fit: 'l', size: 3.4, x: -2 },
     ], [['paladin', 'coalition'], ['warmaster', 'dominion'], ['scorpion', 'syndicate']]],
-    ['MECHS (textured)', 18, ['George', 'Leela', 'Mike', 'Stan'].map((n, i) => ({ url: `/models/mech/${n}.gltf`, label: n, fit: 'h', size: 2.0, x: -22 + i * 5.5 })),
+    ['MECHS (textured)', 18, ['George', 'Leela', 'Mike', 'Stan'].map((n, i) => ({ url: `/models/mech/${n}.gltf`, label: n, fit: 'h', size: 2.4, x: -22 + i * 5.5 })),
       [['emperor', 'dominion'], ['shredder', 'dominion']]],
-    ['TURRETS', 9, ['Cannon_1', 'Cannon_4', 'Cannon_6', 'Gun_8', 'Gun_10', 'Laser_Doble', 'Laser_MachineGun', 'Long_1', 'Long_2'].map((n, i) => ({ url: `/models/turrets/${n}.fbx`, label: n, fit: 'h', size: 1.5, x: -24 + i * 4 })),
+    ['TURRETS', 9, ['Cannon_1', 'Cannon_4', 'Cannon_6', 'Gun_8', 'Gun_10', 'Laser_Doble', 'Laser_MachineGun', 'Long_1', 'Long_2'].map((n, i) => ({ url: `/models/turrets/${n}.fbx`, label: n, fit: 'h', size: 1.8, x: -24 + i * 4 })),
       [['gatling', 'dominion', 'structure'], ['aegis', 'coalition', 'structure']]],
-    ['INFANTRY (animated)', 0, ['Character_Soldier', 'Character_Enemy', 'Character_Hazmat'].map((n, i) => ({ url: `/models/toonshooter/chars/${n}.gltf`, label: n.replace('Character_', ''), fit: 'h', size: 1.05, x: -22 + i * 3 })),
+    ['INFANTRY (animated)', 0, ['Character_Soldier', 'Character_Enemy', 'Character_Hazmat'].map((n, i) => ({ url: `/models/toonshooter/chars/${n}.gltf`, label: n.replace('Character_', ''), fit: 'h', size: 1.3, x: -22 + i * 3 })),
       [['trooper', 'coalition'], ['conscript', 'dominion'], ['militant', 'syndicate']]],
     ['STRUCTURES (ToonShooter env)', -12, [
       ...[1, 2, 3, 4].map((n, i) => ({ url: `/models/toonshooter/env/Structure_${n}.gltf`, label: 'Structure_' + n, fit: 'h', size: 4.5, x: -26 + i * 8 })),

@@ -18,7 +18,7 @@ import { AIController } from './sim/ai.js';
 import { GfxEngine } from './gfx/renderer.js';
 import { Menu } from './ui/menu.js';
 import { HUD } from './ui/hud.js';
-import { createSfx } from './audio/sfx.js';
+import { createSfx, createMusic } from './audio/sfx.js';
 
 const canvas = document.getElementById('game-canvas');
 const uiRoot = document.getElementById('ui-root');
@@ -67,6 +67,8 @@ const ATTACK_EVA = new Set(['baseUnderAttack', 'unitsUnderAttack', 'harvesterUnd
 let seedCounter = 0;
 let session = null;
 let menu = null;
+const music = createMusic();
+let audioMuted = false;
 
 function randomFaction() {
   const keys = Object.keys(FACTIONS);
@@ -76,6 +78,7 @@ function randomFaction() {
 function showMenu() {
   if (menu) { menu.destroy(); menu = null; }
   document.title = 'Iron Command';
+  music.play('menu');
   menu = Menu(uiRoot, {
     factions: FACTIONS,
     onStart: (factionKey, difficulty) => startGame(factionKey, difficulty),
@@ -112,6 +115,8 @@ function createSession(playerFaction, difficulty, opts) {
   const gfx = new GfxEngine(canvas);
   gfx.attach(game);
   const sfx = createSfx(game, { listenerPos: () => gfx.cameraLook() });
+  sfx.setMuted(audioMuted);
+  music.play('game');
 
   // ── listener registries for clean teardown ──
   const domListeners = [];
@@ -514,7 +519,12 @@ function createSession(playerFaction, difficulty, opts) {
       return;
     }
     if (k === 'p') { togglePause(); return; }
-    if (k === 'm') { hud.eva('audio', sfx.toggleMuted() ? 'Audio muted.' : 'Audio on.'); return; }
+    if (k === 'm') {
+      audioMuted = sfx.toggleMuted();
+      music.setMuted(audioMuted);
+      hud.eva('audio', audioMuted ? 'Audio muted.' : 'Audio on.');
+      return;
+    }
     if (paused || over) return;
     switch (k) {
       case 'a': attackMoveArmed = true; break;
