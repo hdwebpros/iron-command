@@ -27,6 +27,7 @@ import { entityIcon, emblemIcon } from './icons.js';
 
 const C = 'currentColor';
 const FACTION_COLOR = { coalition: '#2e7bff', dominion: '#e03c2e', syndicate: '#3da64b' };
+const QUEUE_SLOTS = 9; // matches sim queue cap (game.js queue full check)
 
 // Build menus per faction (canonical structure keys, in build order).
 const BUILD_MENUS = {
@@ -680,20 +681,20 @@ export function HUD(rootEl, cb = {}) {
   }
   function renderQueueAndControls(e, state, ctx) {
     const side = el('div', 'ic-cmd-side');
-    // queue strip
-    const queue = Array.isArray(e.queue) ? e.queue : [];
-    const qstrip = el('div', 'ic-queue', '<div class="ic-queue-label">Queue</div>');
+    // queue strip: fixed slot grid (Generals-style), filled by syncQueueSlots
+    const qstrip = el('div', 'ic-queue', '<div class="ic-queue-label">Queue <span class="ic-queue-count"></span></div>');
     const qitems = el('div', 'ic-queue-items');
-    queue.forEach((q, i) => {
-      const it = el('div', 'ic-queue-item' + (i === 0 ? ' ic-active' : ''));
-      it.title = (unitName(ctx, q.key) || pretty(q.key)) + ' — click to cancel';
-      it.innerHTML = `${entityIcon(q.key, { faction: e.faction, cls: 'ic-queue-icon' })}<div class="ic-queue-prog" style="height:${Math.round((q.progress || 0) * 100)}%"></div>`;
-      it.addEventListener('click', () => { onCancelQueue(e.id, i); blip(300, 0.05, 'sawtooth'); });
+    for (let i = 0; i < QUEUE_SLOTS; i++) {
+      const it = el('div', 'ic-queue-item');
+      it.addEventListener('click', () => {
+        if (!it.classList.contains('ic-filled')) return;
+        onCancelQueue(e.id, i); blip(300, 0.05, 'sawtooth');
+      });
       qitems.appendChild(it);
-    });
-    if (!queue.length) qitems.innerHTML = '<div class="ic-queue-empty">—</div>';
+    }
     qstrip.appendChild(qitems);
     side.appendChild(qstrip);
+    syncQueueSlots(qstrip, Array.isArray(e.queue) ? e.queue : [], e.faction, ctx);
     // control row: rally + sell + upgrades
     const ctrls = el('div', 'ic-ctrls');
     ctrls.appendChild(ctrlBtn('Rally', 'rally', () => { onSetRally(e.id); blip(520, 0.05); }));
@@ -720,6 +721,29 @@ export function HUD(rootEl, cb = {}) {
       side.appendChild(upRow);
     }
     cmdGrid.appendChild(side);
+  }
+
+  // Fill the fixed queue slot grid from the live queue (called on build + light refresh).
+  function syncQueueSlots(qstrip, queue, faction, ctx) {
+    const count = qstrip.querySelector('.ic-queue-count');
+    if (count) count.textContent = queue.length ? `${queue.length}/${QUEUE_SLOTS}` : '';
+    const slots = qstrip.querySelectorAll('.ic-queue-item');
+    slots.forEach((it, i) => {
+      const q = queue[i];
+      if (!q) {
+        if (it.dataset.key) { delete it.dataset.key; it.innerHTML = ''; it.title = ''; }
+        it.classList.remove('ic-filled', 'ic-active');
+        return;
+      }
+      if (it.dataset.key !== q.key) {
+        it.dataset.key = q.key;
+        it.innerHTML = `${entityIcon(q.key, { faction, cls: 'ic-queue-icon' })}<div class="ic-queue-sweep"></div>`;
+        it.title = (unitName(ctx, q.key) || pretty(q.key)) + ' — click to cancel';
+      }
+      it.classList.add('ic-filled');
+      it.classList.toggle('ic-active', i === 0);
+      it.style.setProperty('--prog-deg', Math.round((i === 0 ? q.progress || 0 : 0) * 360) + 'deg');
+    });
   }
 
   // -- Plain structure (defense/tech/etc.): sell + maybe upgrades --
@@ -865,13 +889,8 @@ export function HUD(rootEl, cb = {}) {
     if (cat === 'production') {
       const e = sel[0];
       const cur = byEntId(state, e.id) || e;
-      const items = cmdGrid.querySelectorAll('.ic-queue-item');
-      const queue = Array.isArray(cur.queue) ? cur.queue : [];
-      items.forEach((it, i) => {
-        const q = queue[i];
-        const prog = it.querySelector('.ic-queue-prog');
-        if (prog && q) prog.style.height = Math.round((q.progress || 0) * 100) + '%';
-      });
+      const qstrip = cmdGrid.querySelector('.ic-queue');
+      if (qstrip) syncQueueSlots(qstrip, Array.isArray(cur.queue) ? cur.queue : [], cur.faction || e.faction, ctx);
       // research progress
       const research = cur.research;
       if (research) {

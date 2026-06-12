@@ -40,8 +40,8 @@ gen_sfx shot_cannon  1.5 "tank main cannon single shot, deep powerful boom with 
 gen_sfx shot_missile 1.2 "subtle quiet rocket launch, soft muffled whoosh fading into the distance, gentle airy hiss, understated" &
 gen_sfx shot_flame   1.5 "flamethrower burst, roaring whoosh of fire with deep crackle" &
 gen_sfx shot_toxin   1.2 "pressurized chemical sprayer burst, liquid spray hiss, sizzling" &
-gen_sfx shot_sniper  1.2 "single sniper rifle shot, sharp loud crack with a brief canyon echo" &
-gen_sfx shot_beam    1.2 "science fiction laser beam zap, focused energy discharge, electric crackling burst" &
+gen_sfx shot_sniper  1.2 "single suppressed sniper rifle shot, quiet muffled thump through a silencer, soft mechanical bolt click, subdued" &
+gen_sfx shot_beam    1.2 "soft science fiction laser zap, quiet focused energy pulse, gentle electric fizz, understated" &
 # ── impacts & deaths ─────────────────────────────────────────────────────────
 gen_sfx exp_small    1.4 "small explosion, sharp concussive blast with light debris, short tail" &
 gen_sfx exp_big      2.5 "large powerful explosion, deep bass boom with rumbling debris tail" &

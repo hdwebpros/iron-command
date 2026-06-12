@@ -758,6 +758,9 @@ function createSession(playerFaction, difficulty, opts) {
   // center camera on player base at start
   jumpHome();
 
+  // test hook: scripted smoke tests drive selection/commands/camera through this
+  window.__DBG = { game, gfx, setSelection, issueP, lookAt: (x, z) => gfx.jumpTo(x, z) };
+
   // ── teardown ──────────────────────────────────────────────────────────────
   function teardown() {
     stopped = true;

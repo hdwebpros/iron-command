@@ -13,8 +13,8 @@ const SHOT = {
   sniper: 'shot_sniper', beam: 'shot_beam',
 };
 const SUPER = { orbitalLance: 'super_beam', nuclearMissile: 'super_nuke', viperStorm: 'exp_big' };
-// per-clip shot volume (default 0.7) — rapid-fire and missile launches stay subtle
-const SHOT_VOL = { shot_rifle: 0.45, shot_gatling: 0.45, shot_missile: 0.3 };
+// per-clip shot volume (default 0.7) — rapid-fire, missile, sniper and beam stay subtle
+const SHOT_VOL = { shot_rifle: 0.45, shot_gatling: 0.45, shot_missile: 0.3, shot_sniper: 0.4, shot_beam: 0.4 };
 
 // infantry keys (for death-sound choice) — defs are gone by the time 'death' fires
 const INFANTRY = new Set();

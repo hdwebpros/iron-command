@@ -1225,6 +1225,13 @@ export class GfxEngine {
         fx.drawBar(rec.x, rec.y + yOff + (u.height || 0.8) + 0.5, rec.z, hpFrac, w);
       }
 
+      // ── production progress (own building training a unit) ──
+      if (rec.kind === 'structure' && ent.side === 'player' && !building
+          && Array.isArray(ent.queue) && ent.queue.length) {
+        const w = Math.max(0.7, (u.radius || 1.5) * 0.7);
+        fx.drawBar(rec.x, rec.y + (u.height || 1.5) + 0.78, rec.z, ent.queue[0].progress || 0, w, 0x28d3e8, 0.6);
+      }
+
       animateEntityMesh(g, dt, time, moving);
     }
     fx.endBars();

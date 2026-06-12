@@ -472,16 +472,17 @@ class BarPool {
 
   begin() { this.used = 0; }
 
-  draw(x, y, z, frac, quat, w = 1) {
+  draw(x, y, z, frac, quat, w = 1, color = null, h = 1) {
     if (this.used >= this.items.length) return;
     const p = this.items[this.used++];
     frac = Math.min(1, Math.max(0, frac));
     p.g.position.set(x, y, z);
     p.g.quaternion.copy(quat);
-    p.g.scale.set(w, 1, 1);
+    p.g.scale.set(w, h, 1);
     p.fg.scale.x = Math.max(0.02, frac);
     p.fg.position.x = -(1 - frac) * 0.47;
-    p.fg.material.color.setHSL(frac * 0.33, 0.85, 0.5);
+    if (color != null) p.fg.material.color.setHex(color);
+    else p.fg.material.color.setHSL(frac * 0.33, 0.85, 0.5);
     p.g.visible = true;
   }
 
@@ -943,7 +944,7 @@ export class Effects {
 
   /* ── health bars ──────────────────────────────────────────────────────── */
   beginBars() { this.bars.begin(); }
-  drawBar(x, y, z, frac, w = 1) { this.bars.draw(x, y, z, frac, this.camera.quaternion, w); }
+  drawBar(x, y, z, frac, w = 1, color = null, h = 1) { this.bars.draw(x, y, z, frac, this.camera.quaternion, w, color, h); }
   endBars() { this.bars.end(); }
 
   /* ── frame update ─────────────────────────────────────────────────────── */
